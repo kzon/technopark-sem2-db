@@ -56,12 +56,16 @@ func (r *Repository) getUsersByNicknameOrEmail(nickname, email string) ([]*model
 	return users, nil
 }
 
-func (r *Repository) createUser(nickname, email, fullname, about string) error {
-	_, err := r.db.Exec(
-		`insert into "`+consts.UserTable+`" (nickname, email, fullname, about) values ($1, $2, $3, $4)`,
+func (r *Repository) createUser(nickname, email, fullname, about string) (*model.User, error) {
+	var id int
+	err := r.db.QueryRow(
+		`insert into "`+consts.UserTable+`" (nickname, email, fullname, about) values ($1, $2, $3, $4) returning id`,
 		nickname, email, fullname, about,
-	)
-	return err
+	).Scan(&id)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetUserByID(id)
 }
 
 func (r *Repository) updateUserByNickname(nickname, email, fullname, about string) error {

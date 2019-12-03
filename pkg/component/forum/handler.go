@@ -5,6 +5,8 @@ import (
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/delivery"
 	"github.com/labstack/echo"
+	"strconv"
+	"time"
 )
 
 type Handler struct {
@@ -16,6 +18,7 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	e.POST("/api/forum/create", handler.handleForumCreate)
 	e.POST("/api/forum/:slug/create", handler.handleThreadCreate)
 	e.GET("/api/forum/:slug/details", handler.handleGetForumDetails)
+	e.GET("/api/forum/:slug/threads", handler.handleGetForumThreads)
 	return handler
 }
 
@@ -53,6 +56,17 @@ func (h *Handler) handleThreadCreate(c echo.Context) error {
 func (h *Handler) handleGetForumDetails(c echo.Context) error {
 	slug := c.Param("slug")
 	forum, err := h.usecase.getForum(slug)
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, forum)
+}
+
+func (h *Handler) handleGetForumThreads(c echo.Context) error {
+	limit, _ := strconv.Atoi(c.Param("limit"))
+	since, _ := time.Parse(time.RFC3339, c.Param("since"))
+	desc, _ := strconv.ParseBool(c.Param("desc"))
+	forum, err := h.usecase.getForumThreads(c.Param("slug"), limit, since, desc)
 	if err != nil {
 		return delivery.Error(c, err)
 	}

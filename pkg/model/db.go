@@ -38,3 +38,10 @@ type Post struct {
 	IsEdited bool   `db:"isEdited" json:"isEdited"`
 	Created  string `db:"created" json:"created"`
 }
+
+type Vote struct {
+	ID       int    `db:"id" json:"id"`
+	Thread   int    `db:"thread" json:"thread"`
+	Nickname string `db:"nickname" json:"nickname"`
+	Voice    int    `db:"voice" json:"voice"`
+}

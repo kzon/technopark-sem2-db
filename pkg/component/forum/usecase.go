@@ -88,3 +88,17 @@ func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) ([]
 	}
 	return threads, nil
 }
+
+func (u *Usecase) voteForThread(threadSlugOrID string, vote vote) (thread *model.Thread, err error) {
+	thread, err = u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
+	if err != nil {
+		return
+	}
+	user, err := u.userRepo.GetUserByNickname(vote.Nickname)
+	if err != nil {
+		return
+	}
+	newVotes, err := u.forumRepo.addThreadVote(thread, user.Nickname, vote.Voice)
+	thread.Votes = newVotes
+	return
+}

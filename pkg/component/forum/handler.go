@@ -19,6 +19,7 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	e.GET("/api/forum/:slug/details", handler.handleGetForumDetails)
 	e.GET("/api/forum/:slug/threads", handler.handleGetForumThreads)
 	e.POST("/api/thread/:slug_or_id/create", handler.handlePostCreate)
+	e.POST("/api/thread/:slug_or_id/vote", handler.handleVoteForThread)
 	return handler
 }
 
@@ -77,13 +78,21 @@ func (h *Handler) handlePostCreate(c echo.Context) error {
 	if err := c.Bind(&posts); err != nil {
 		return delivery.BadRequest(c, err)
 	}
-	thread := c.Param("slug_or_id")
-	result, err := h.usecase.createPosts(thread, posts)
-	if errors.Is(err, consts.ErrConflict) {
-		return delivery.Conflict(c, result)
-	}
+	result, err := h.usecase.createPosts(c.Param("slug_or_id"), posts)
 	if err != nil {
 		return delivery.Error(c, err)
 	}
 	return delivery.Created(c, result)
+}
+
+func (h *Handler) handleVoteForThread(c echo.Context) error {
+	var vote vote
+	if err := c.Bind(&vote); err != nil {
+		return delivery.BadRequest(c, err)
+	}
+	thread, err := h.usecase.voteForThread(c.Param("slug_or_id"), vote)
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, thread)
 }

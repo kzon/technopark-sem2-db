@@ -12,11 +12,11 @@ RUN apt -y update && apt install -y postgresql-$PGVER
 
 USER postgres
 
-ADD ./assets/db /opt/assets/db
+ADD ./db.sql /opt/db.sql
 RUN /etc/init.d/postgresql start &&\
 	psql --command "CREATE USER subd WITH SUPERUSER PASSWORD 'subd';" &&\
 	createdb -O subd subd &&\
-    psql -f /opt/assets/db/init.sql -d subd &&\
+    psql -f /opt/db.sql -d subd &&\
     /etc/init.d/postgresql stop
 ENV POSTGRES_DSN=postgres://subd:subd@localhost/subd
 

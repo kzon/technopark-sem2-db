@@ -31,6 +31,8 @@ create table "thread"
     "created" timestamptz default now() not null
 );
 
+create index on "thread" ("slug");
+
 create table "post"
 (
     "id"       serial primary key,
@@ -41,4 +43,12 @@ create table "post"
     "message"  text                      not null,
     "isEdited" bool        default false not null,
     "created"  timestamptz default now() not null
+);
+
+create table "vote"
+(
+    "id"       serial primary key,
+    "thread"   int    not null,
+    "nickname" citext not null,
+    "voice"    int    not null
 );

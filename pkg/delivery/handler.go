@@ -21,19 +21,19 @@ func BadRequest(c echo.Context, err error) error {
 
 func Error(c echo.Context, err error) error {
 	if errors.Is(err, consts.ErrNotFound) {
-		return NotFound(c, err)
+		return notFound(c, err)
 	}
 	if err != nil {
-		return InternalError(c, err)
+		return internalError(c, err)
 	}
 	return Ok(c, "")
 }
 
-func NotFound(c echo.Context, err error) error {
+func notFound(c echo.Context, err error) error {
 	return responseWithMessage(c, http.StatusNotFound, err)
 }
 
-func InternalError(c echo.Context, err error) error {
+func internalError(c echo.Context, err error) error {
 	return responseWithMessage(c, http.StatusInternalServerError, err)
 }
 

@@ -19,3 +19,8 @@ type postCreate struct {
 	Message string `json:"message"`
 	Parent  int    `json:"parent"`
 }
+
+type vote struct {
+	Nickname string `json:"nickname"`
+	Voice    int    `json:"voice"`
+}

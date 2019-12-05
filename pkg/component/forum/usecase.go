@@ -63,6 +63,19 @@ func (u *Usecase) createThread(forum string, thread threadCreate) (*model.Thread
 	return u.forumRepo.createThread(forum, thread)
 }
 
-func (u *Usecase) getForumThreads(slug string, limit int, since time.Time, desc bool) ([]*model.Thread, error) {
-	return nil, nil
+func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) ([]*model.Thread, error) {
+	if _, err := u.forumRepo.getForumBySlug(forum); err != nil {
+		return nil, err
+	}
+	var threads []*model.Thread
+	var err error
+	if since == "" {
+		threads, err = u.forumRepo.getForumThreads(forum, limit, desc)
+	} else {
+		threads, err = u.forumRepo.getForumThreadsSince(forum, since, limit, desc)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return threads, nil
 }

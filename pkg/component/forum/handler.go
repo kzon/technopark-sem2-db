@@ -6,7 +6,6 @@ import (
 	"github.com/kzon/technopark-sem2-db/pkg/delivery"
 	"github.com/labstack/echo"
 	"strconv"
-	"time"
 )
 
 type Handler struct {
@@ -63,12 +62,11 @@ func (h *Handler) handleGetForumDetails(c echo.Context) error {
 }
 
 func (h *Handler) handleGetForumThreads(c echo.Context) error {
-	limit, _ := strconv.Atoi(c.Param("limit"))
-	since, _ := time.Parse(time.RFC3339, c.Param("since"))
-	desc, _ := strconv.ParseBool(c.Param("desc"))
-	forum, err := h.usecase.getForumThreads(c.Param("slug"), limit, since, desc)
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	desc, _ := strconv.ParseBool(c.QueryParam("desc"))
+	threads, err := h.usecase.getForumThreads(c.Param("slug"), c.QueryParam("since"), limit, desc)
 	if err != nil {
 		return delivery.Error(c, err)
 	}
-	return delivery.Ok(c, forum)
+	return delivery.Ok(c, threads)
 }

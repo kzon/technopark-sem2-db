@@ -1,7 +1,9 @@
 package forum
 
 import (
+	"fmt"
 	"github.com/jmoiron/sqlx"
+	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	repo "github.com/kzon/technopark-sem2-db/pkg/repository"
 	"strconv"
@@ -68,6 +70,14 @@ func (r *Repository) getThreadBySlug(slug string) (*model.Thread, error) {
 	return r.getThread("slug=$1", slug)
 }
 
+func (r *Repository) getThreadBySlugOrID(slugOrID string) (*model.Thread, error) {
+	id, err := strconv.Atoi(slugOrID)
+	if err != nil {
+		return r.getThread("slug=$1", slugOrID)
+	}
+	return r.getThread("id=$1", id)
+}
+
 func (r *Repository) getThread(filter string, params ...interface{}) (*model.Thread, error) {
 	thread := model.Thread{}
 	err := r.db.Get(&thread, "select * from thread where "+filter, params...)
@@ -75,6 +85,19 @@ func (r *Repository) getThread(filter string, params ...interface{}) (*model.Thr
 		return nil, repo.Error(err)
 	}
 	return &thread, nil
+}
+
+func (r *Repository) getPostByID(id int) (*model.Post, error) {
+	return r.getPost("id=$1", id)
+}
+
+func (r *Repository) getPost(filter string, params ...interface{}) (*model.Post, error) {
+	post := model.Post{}
+	err := r.db.Get(&post, "select * from post where "+filter, params...)
+	if err != nil {
+		return nil, repo.Error(err)
+	}
+	return &post, nil
 }
 
 func (r *Repository) createForum(title, slug, user string) (*model.Forum, error) {
@@ -88,16 +111,57 @@ func (r *Repository) createForum(title, slug, user string) (*model.Forum, error)
 	return r.getForumByID(id)
 }
 
-func (r *Repository) createThread(forum string, thread threadCreate) (*model.Thread, error) {
+func (r *Repository) createThread(forum *model.Forum, thread threadCreate) (*model.Thread, error) {
 	var id int
 	err := r.db.
 		QueryRow(
-			`insert into thread (title, "user", forum, message, slug, created) values ($1, $2, $3, $4, $5, $6) returning id`,
-			thread.Title, thread.Author, forum, thread.Message, thread.Slug, thread.Created,
+			`insert into thread (title, author, forum, message, slug, created) values ($1, $2, $3, $4, $5, $6) returning id`,
+			thread.Title, thread.Author, forum.Slug, thread.Message, thread.Slug, thread.Created,
 		).
 		Scan(&id)
 	if err != nil {
 		return nil, err
 	}
 	return r.getThreadByID(id)
+}
+
+func (r *Repository) createPosts(thread *model.Thread, posts []postCreate) ([]*model.Post, error) {
+	if !r.postsParentsExists(posts) {
+		return nil, fmt.Errorf("%w: post parent do not exists", consts.ErrConflict)
+	}
+	result := make([]*model.Post, 0, len(posts))
+	for _, post := range posts {
+		created, err := r.createPost(thread, post)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, created)
+	}
+	return result, nil
+}
+
+func (r *Repository) createPost(thread *model.Thread, post postCreate) (*model.Post, error) {
+	var id int
+	err := r.db.
+		QueryRow(
+			`insert into post (thread, forum, parent, author, message) values ($1, $2, $3, $4, $5) returning id`,
+			thread.ID, thread.Forum, post.Parent, post.Author, post.Message,
+		).
+		Scan(&id)
+	if err != nil {
+		return nil, err
+	}
+	return r.getPostByID(id)
+}
+
+func (r *Repository) postsParentsExists(posts []postCreate) bool {
+	for _, post := range posts {
+		if post.Parent == 0 {
+			continue
+		}
+		if _, err := r.getPostByID(post.Parent); err != nil {
+			return false
+		}
+	}
+	return true
 }

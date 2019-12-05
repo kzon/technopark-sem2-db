@@ -34,15 +34,12 @@ func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error
 	return u.forumRepo.createForum(title, slug, user.Nickname)
 }
 
-func (u *Usecase) getForum(slug string) (*model.Forum, error) {
-	return u.forumRepo.getForumBySlug(slug)
-}
-
-func (u *Usecase) createThread(forum string, thread threadCreate) (*model.Thread, error) {
+func (u *Usecase) createThread(forumSlug string, thread threadCreate) (*model.Thread, error) {
 	if _, err := u.userRepo.GetUserByNickname(thread.Author); err != nil {
 		return nil, err
 	}
-	if _, err := u.forumRepo.getForumBySlug(forum); err != nil {
+	forum, err := u.forumRepo.getForumBySlug(forumSlug)
+	if err != nil {
 		return nil, err
 	}
 
@@ -61,6 +58,18 @@ func (u *Usecase) createThread(forum string, thread threadCreate) (*model.Thread
 	}
 
 	return u.forumRepo.createThread(forum, thread)
+}
+
+func (u *Usecase) createPosts(threadSlugOrID string, posts []postCreate) ([]*model.Post, error) {
+	thread, err := u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
+	if err != nil {
+		return nil, err
+	}
+	return u.forumRepo.createPosts(thread, posts)
+}
+
+func (u *Usecase) getForum(slug string) (*model.Forum, error) {
+	return u.forumRepo.getForumBySlug(slug)
 }
 
 func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) ([]*model.Thread, error) {

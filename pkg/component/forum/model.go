@@ -13,3 +13,9 @@ type threadCreate struct {
 	Slug    string `json:"slug"`
 	Title   string `json:"title"`
 }
+
+type postCreate struct {
+	Author  string `json:"author"`
+	Message string `json:"message"`
+	Parent  int    `json:"parent"`
+}

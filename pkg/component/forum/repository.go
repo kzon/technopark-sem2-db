@@ -8,6 +8,7 @@ import (
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	repo "github.com/kzon/technopark-sem2-db/pkg/repository"
 	"strconv"
+	"time"
 )
 
 type Repository struct {
@@ -101,6 +102,121 @@ func (r *Repository) getPost(filter string, params ...interface{}) (*model.Post,
 	return &post, nil
 }
 
+func (r *Repository) getPosts(orderBy string, desc bool, limit int, filter string, params ...interface{}) ([]*model.Post, error) {
+	var posts []*model.Post
+	sort := ""
+	if desc {
+		sort = "desc"
+	}
+	err := r.db.Select(&posts,
+		fmt.Sprintf(`select * from post where %s order by %s %s limit %d`, filter, orderBy, sort, limit),
+		params...,
+	)
+	return posts, err
+}
+
+func (r *Repository) getThreadPosts(thread, limit int, since, sort string, desc bool) ([]*model.Post, error) {
+	switch sort {
+	case "", "flat":
+		return r.getThreadPostsFlat(thread, limit, since, desc)
+	case "tree":
+		return r.getThreadPostsTree(thread, 0, limit, since, desc)
+	case "parent_tree":
+		return r.getThreadPostsParentTree(thread, limit, since, desc)
+	}
+	return nil, fmt.Errorf("%w: unknown sort method '%s'", consts.ErrNotFound, sort)
+}
+
+func (r *Repository) getThreadPostsFlat(thread, limit int, since string, desc bool) ([]*model.Post, error) {
+	posts := make([]*model.Post, 0)
+	sort := ""
+	if desc {
+		sort = "desc"
+	}
+	var err error
+	if since == "" {
+		err = r.db.Select(&posts,
+			fmt.Sprintf(`select * from post where thread = $1 order by created %s, id %s limit $2`, sort, sort),
+			thread, limit,
+		)
+	} else {
+		err = r.db.Select(&posts,
+			fmt.Sprintf(`select * from post where thread = $1 and id > $2 order by created %s, id %s limit $3`, sort, sort),
+			thread, since, limit,
+		)
+	}
+	return posts, err
+}
+
+func (r *Repository) getPostsByParent(thread, parent, limit int, since string, desc bool) ([]*model.Post, error) {
+	filter := "thread = $1 and parent = $2"
+	params := []interface{}{thread, parent}
+	if since != "" {
+		filter += " and id > $3"
+		params = append(params, since)
+	}
+	return r.getPosts("created, id", desc, limit, filter, params...)
+}
+
+func (r *Repository) getThreadPostsTree(thread, parent, limit int, since string, desc bool) ([]*model.Post, error) {
+	rootPosts, err := r.getPostsByParent(thread, parent, limit, since, desc)
+	if err != nil {
+		return nil, err
+	}
+	if len(rootPosts) == 0 {
+		return rootPosts, nil
+	}
+	result := make([]*model.Post, 0, limit/2)
+	count := 0
+	for _, rootPost := range rootPosts {
+		childPosts, err := r.getThreadPostsTree(thread, rootPost.ID, limit-count-1, since, desc)
+		if err != nil {
+			return nil, err
+		}
+		if desc {
+			result = append(result, childPosts...)
+			result = append(result, rootPost)
+		} else {
+			result = append(result, rootPost)
+			result = append(result, childPosts...)
+		}
+		count += len(childPosts) + 1
+		if count == limit {
+			break
+		}
+	}
+	return result, nil
+}
+
+func (r *Repository) getThreadPostsParentTree(thread, limit int, since string, desc bool) ([]*model.Post, error) {
+	sort := ""
+	if desc {
+		sort = "desc"
+	}
+	var rootPosts []*model.Post
+	err := r.db.Select(&rootPosts,
+		fmt.Sprintf(`select * from post where thread = $1 and parent = 0 order by created %s, id %s limit $2`, sort, sort),
+		thread, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*model.Post, 0)
+	for _, rootPost := range rootPosts {
+		var childPosts []*model.Post
+		err := r.db.Select(&childPosts,
+			`select * from post where thread = $1 and parent = $2 order by created, id`,
+			thread, rootPost.ID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, rootPost)
+		result = append(result, childPosts...)
+	}
+	return result, nil
+}
+
 func (r *Repository) createForum(title, slug, user string) (*model.Forum, error) {
 	var id int
 	err := r.db.
@@ -130,9 +246,10 @@ func (r *Repository) createPosts(thread *model.Thread, posts []postCreate) ([]*m
 	if !r.postsParentsExists(posts) {
 		return nil, fmt.Errorf("%w: post parent do not exists", consts.ErrConflict)
 	}
+	now := time.Now()
 	result := make([]*model.Post, 0, len(posts))
 	for _, post := range posts {
-		created, err := r.createPost(thread, post)
+		created, err := r.createPost(thread, post, now)
 		if err != nil {
 			return nil, err
 		}
@@ -141,12 +258,12 @@ func (r *Repository) createPosts(thread *model.Thread, posts []postCreate) ([]*m
 	return result, nil
 }
 
-func (r *Repository) createPost(thread *model.Thread, post postCreate) (*model.Post, error) {
+func (r *Repository) createPost(thread *model.Thread, post postCreate, created time.Time) (*model.Post, error) {
 	var id int
 	err := r.db.
 		QueryRow(
-			`insert into post (thread, forum, parent, author, message) values ($1, $2, $3, $4, $5) returning id`,
-			thread.ID, thread.Forum, post.Parent, post.Author, post.Message,
+			`insert into post (thread, forum, parent, author, message, created) values ($1, $2, $3, $4, $5, $6) returning id`,
+			thread.ID, thread.Forum, post.Parent, post.Author, post.Message, created,
 		).
 		Scan(&id)
 	if err != nil {

@@ -20,6 +20,8 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	e.GET("/api/forum/:slug/threads", handler.handleGetForumThreads)
 	e.POST("/api/thread/:slug_or_id/create", handler.handlePostCreate)
 	e.POST("/api/thread/:slug_or_id/vote", handler.handleVoteForThread)
+	e.GET("/api/thread/:slug_or_id/details", handler.handleGetThreadDetails)
+	e.GET("/api/thread/:slug_or_id/posts", handler.handleGetThreadPosts)
 	return handler
 }
 
@@ -95,4 +97,28 @@ func (h *Handler) handleVoteForThread(c echo.Context) error {
 		return delivery.Error(c, err)
 	}
 	return delivery.Ok(c, thread)
+}
+
+func (h *Handler) handleGetThreadDetails(c echo.Context) error {
+	thread, err := h.usecase.getThread(c.Param("slug_or_id"))
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, thread)
+}
+
+func (h *Handler) handleGetThreadPosts(c echo.Context) error {
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	desc, _ := strconv.ParseBool(c.QueryParam("desc"))
+	posts, err := h.usecase.getThreadPosts(
+		c.Param("slug_or_id"),
+		limit,
+		c.QueryParam("since"),
+		c.QueryParam("sort"),
+		desc,
+	)
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, posts)
 }

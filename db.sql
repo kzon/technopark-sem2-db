@@ -22,13 +22,13 @@ create table "forum"
 create table "thread"
 (
     "id"      serial primary key,
-    "title"   varchar                   not null,
-    "author"  citext                    not null,
-    "forum"   citext                    not null,
-    "message" text                      not null,
-    "votes"   int         default 0     not null,
-    "slug"    citext                    not null,
-    "created" timestamptz default now() not null
+    "title"   varchar       not null,
+    "author"  citext        not null,
+    "forum"   citext        not null,
+    "message" text          not null,
+    "votes"   int default 0 not null,
+    "slug"    citext        not null,
+    "created" timestamptz   not null
 );
 
 create index on "thread" ("slug");
@@ -36,13 +36,13 @@ create index on "thread" ("slug");
 create table "post"
 (
     "id"       serial primary key,
-    "parent"   int                       not null,
-    "author"   citext                    not null,
-    "forum"    citext                    not null,
-    "thread"   int                       not null,
-    "message"  text                      not null,
-    "isEdited" bool        default false not null,
-    "created"  timestamptz default now() not null
+    "parent"   int                not null,
+    "author"   citext             not null,
+    "forum"    citext             not null,
+    "thread"   int                not null,
+    "message"  text               not null,
+    "isEdited" bool default false not null,
+    "created"  timestamptz        not null
 );
 
 create table "vote"

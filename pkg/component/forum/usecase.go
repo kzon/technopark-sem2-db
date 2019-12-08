@@ -102,3 +102,15 @@ func (u *Usecase) voteForThread(threadSlugOrID string, vote vote) (thread *model
 	thread.Votes = newVotes
 	return
 }
+
+func (u *Usecase) getThread(threadSlugOrID string) (*model.Thread, error) {
+	return u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
+}
+
+func (u *Usecase) getThreadPosts(threadSlugOrID string, limit int, since, sort string, desc bool) ([]*model.Post, error) {
+	thread, err := u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
+	if err != nil {
+		return nil, err
+	}
+	return u.forumRepo.getThreadPosts(thread.ID, limit, since, sort, desc)
+}

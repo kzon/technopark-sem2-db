@@ -21,6 +21,7 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	e.POST("/api/thread/:slug_or_id/create", handler.handlePostCreate)
 	e.POST("/api/thread/:slug_or_id/vote", handler.handleVoteForThread)
 	e.GET("/api/thread/:slug_or_id/details", handler.handleGetThreadDetails)
+	e.POST("/api/thread/:slug_or_id/details", handler.handleThreadUpdate)
 	e.GET("/api/thread/:slug_or_id/posts", handler.handleGetThreadPosts)
 	return handler
 }
@@ -101,6 +102,18 @@ func (h *Handler) handleVoteForThread(c echo.Context) error {
 
 func (h *Handler) handleGetThreadDetails(c echo.Context) error {
 	thread, err := h.usecase.getThread(c.Param("slug_or_id"))
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, thread)
+}
+
+func (h *Handler) handleThreadUpdate(c echo.Context) error {
+	t := threadUpdate{}
+	if err := c.Bind(&t); err != nil {
+		return delivery.BadRequest(c, err)
+	}
+	thread, err := h.usecase.updateThread(c.Param("slug_or_id"), t.Message, t.Title)
 	if err != nil {
 		return delivery.Error(c, err)
 	}

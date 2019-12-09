@@ -19,15 +19,12 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	return handler
 }
 
-const nicknameRequestParam = "nickname"
-
 func (h *Handler) handleUserCreate(c echo.Context) error {
-	userToInput := userToInput{}
-	if err := c.Bind(&userToInput); err != nil {
+	u := userInput{}
+	if err := c.Bind(&u); err != nil {
 		return delivery.BadRequest(c, err)
 	}
-	nickname := c.Param(nicknameRequestParam)
-	users, err := h.usecase.createUser(nickname, userToInput.Email, userToInput.Fullname, userToInput.About)
+	users, err := h.usecase.createUser(c.Param("nickname"), u.Email, u.Fullname, u.About)
 	if errors.Is(err, consts.ErrConflict) {
 		return delivery.Conflict(c, users)
 	}
@@ -38,21 +35,19 @@ func (h *Handler) handleUserCreate(c echo.Context) error {
 }
 
 func (h *Handler) handleGetUserProfile(c echo.Context) error {
-	nickname := c.Param(nicknameRequestParam)
-	user, err := h.usecase.getUserByNickname(nickname)
+	u, err := h.usecase.getUserByNickname(c.Param("nickname"))
 	if err != nil {
 		return delivery.Error(c, err)
 	}
-	return delivery.Ok(c, user)
+	return delivery.Ok(c, u)
 }
 
 func (h *Handler) handleUserUpdate(c echo.Context) error {
-	userToInput := userToInput{}
-	if err := c.Bind(&userToInput); err != nil {
+	u := userInput{}
+	if err := c.Bind(&u); err != nil {
 		return delivery.BadRequest(c, err)
 	}
-	nickname := c.Param(nicknameRequestParam)
-	user, err := h.usecase.updateUser(nickname, userToInput.Email, userToInput.Fullname, userToInput.About)
+	user, err := h.usecase.updateUser(c.Param("nickname"), u.Email, u.Fullname, u.About)
 	if errors.Is(err, consts.ErrConflict) {
 		return delivery.ConflictWithMessage(c, err)
 	}

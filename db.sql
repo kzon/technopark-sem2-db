@@ -3,16 +3,16 @@ create extension if not exists citext;
 create table "user"
 (
     "id"       serial primary key,
-    "nickname" citext  not null unique,
-    "email"    citext  not null unique,
-    "fullname" varchar not null,
-    "about"    varchar not null default ''
+    "nickname" citext not null unique,
+    "email"    citext not null unique,
+    "fullname" text   not null,
+    "about"    text   not null default ''
 );
 
 create table "forum"
 (
     "id"      serial primary key,
-    "title"   varchar       not null,
+    "title"   text          not null,
     "user"    citext        not null,
     "slug"    citext        not null unique,
     "posts"   int default 0 not null,
@@ -22,7 +22,7 @@ create table "forum"
 create table "thread"
 (
     "id"      serial primary key,
-    "title"   varchar       not null,
+    "title"   text          not null,
     "author"  citext        not null,
     "forum"   citext        not null,
     "message" text          not null,

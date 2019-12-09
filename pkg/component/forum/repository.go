@@ -312,6 +312,24 @@ func (r *Repository) createThread(forum *model.Forum, thread threadCreate) (*mod
 	return r.getThreadByID(id)
 }
 
+func (r *Repository) updateThread(threadSlugOrID string, message, title string) (*model.Thread, error) {
+	thread, err := r.getThreadBySlugOrID(threadSlugOrID)
+	if err != nil {
+		return nil, err
+	}
+	if message != "" {
+		thread.Message = message
+	}
+	if title != "" {
+		thread.Title = title
+	}
+	_, err = r.db.Exec(
+		`update thread set "message" = $1, title = $2 where id = $3`,
+		thread.Message, thread.Title, thread.ID,
+	)
+	return thread, err
+}
+
 func (r *Repository) createPosts(thread *model.Thread, posts []postCreate) (model.Posts, error) {
 	if !r.postsParentsExists(posts) {
 		return nil, fmt.Errorf("%w: post parent do not exists", consts.ErrConflict)

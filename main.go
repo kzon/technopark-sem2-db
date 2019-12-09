@@ -4,6 +4,7 @@ import (
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/kzon/technopark-sem2-db/pkg/component/forum"
+	"github.com/kzon/technopark-sem2-db/pkg/component/forum/repository"
 	"github.com/kzon/technopark-sem2-db/pkg/component/user"
 	"github.com/labstack/echo"
 	"log"
@@ -23,7 +24,7 @@ func main() {
 	userUsecase := user.NewUsecase(userRepo)
 	user.NewHandler(e, userUsecase)
 
-	forumRepo := forum.NewRepository(db)
+	forumRepo := repository.NewRepository(db)
 	forumUsecase := forum.NewUsecase(forumRepo, userRepo)
 	forum.NewHandler(e, forumUsecase)
 

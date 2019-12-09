@@ -2,6 +2,7 @@ package forum
 
 import (
 	"errors"
+	forumModel "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/delivery"
 	"github.com/labstack/echo"
@@ -27,7 +28,7 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 }
 
 func (h Handler) handleForumCreate(c echo.Context) error {
-	forumToCreate := forumCreate{}
+	forumToCreate := forumModel.ForumCreate{}
 	if err := c.Bind(&forumToCreate); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -42,7 +43,7 @@ func (h Handler) handleForumCreate(c echo.Context) error {
 }
 
 func (h *Handler) handleThreadCreate(c echo.Context) error {
-	thread := threadCreate{}
+	thread := forumModel.ThreadCreate{}
 	if err := c.Bind(&thread); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -77,7 +78,7 @@ func (h *Handler) handleGetForumThreads(c echo.Context) error {
 }
 
 func (h *Handler) handlePostCreate(c echo.Context) error {
-	var posts []postCreate
+	var posts []forumModel.PostCreate
 	if err := c.Bind(&posts); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -89,7 +90,7 @@ func (h *Handler) handlePostCreate(c echo.Context) error {
 }
 
 func (h *Handler) handleVoteForThread(c echo.Context) error {
-	var vote vote
+	var vote forumModel.Vote
 	if err := c.Bind(&vote); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -109,7 +110,7 @@ func (h *Handler) handleGetThreadDetails(c echo.Context) error {
 }
 
 func (h *Handler) handleThreadUpdate(c echo.Context) error {
-	t := threadUpdate{}
+	t := forumModel.ThreadUpdate{}
 	if err := c.Bind(&t); err != nil {
 		return delivery.BadRequest(c, err)
 	}

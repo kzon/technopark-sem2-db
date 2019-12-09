@@ -2,6 +2,8 @@ package forum
 
 import (
 	"fmt"
+	forumModel "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
+	"github.com/kzon/technopark-sem2-db/pkg/component/forum/repository"
 	userComponent "github.com/kzon/technopark-sem2-db/pkg/component/user"
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
@@ -9,11 +11,11 @@ import (
 )
 
 type Usecase struct {
-	forumRepo Repository
+	forumRepo repository.Repository
 	userRepo  userComponent.Repository
 }
 
-func NewUsecase(forumRepo Repository, userRepo userComponent.Repository) Usecase {
+func NewUsecase(forumRepo repository.Repository, userRepo userComponent.Repository) Usecase {
 	return Usecase{forumRepo: forumRepo, userRepo: userRepo}
 }
 
@@ -23,7 +25,7 @@ func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error
 		return nil, err
 	}
 
-	existingForum, err := u.forumRepo.getForumBySlug(slug)
+	existingForum, err := u.forumRepo.GetForumBySlug(slug)
 	if err != nil && err != consts.ErrNotFound {
 		return nil, err
 	}
@@ -31,20 +33,20 @@ func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error
 		return existingForum, fmt.Errorf("%w: forum with this slug already exists", consts.ErrConflict)
 	}
 
-	return u.forumRepo.createForum(title, slug, user.Nickname)
+	return u.forumRepo.CreateForum(title, slug, user.Nickname)
 }
 
-func (u *Usecase) createThread(forumSlug string, thread threadCreate) (*model.Thread, error) {
+func (u *Usecase) createThread(forumSlug string, thread forumModel.ThreadCreate) (*model.Thread, error) {
 	if _, err := u.userRepo.GetUserByNickname(thread.Author); err != nil {
 		return nil, err
 	}
-	forum, err := u.forumRepo.getForumBySlug(forumSlug)
+	forum, err := u.forumRepo.GetForumBySlug(forumSlug)
 	if err != nil {
 		return nil, err
 	}
 
 	if thread.Slug != "" {
-		existing, err := u.forumRepo.getThreadBySlug(thread.Slug)
+		existing, err := u.forumRepo.GetThreadBySlug(thread.Slug)
 		if err != nil && err != consts.ErrNotFound {
 			return nil, err
 		}
@@ -57,31 +59,31 @@ func (u *Usecase) createThread(forumSlug string, thread threadCreate) (*model.Th
 		thread.Created = time.Now().Format(time.RFC3339)
 	}
 
-	return u.forumRepo.createThread(forum, thread)
+	return u.forumRepo.CreateThread(forum, thread)
 }
 
 func (u *Usecase) updateThread(threadSlugOrID string, message, title string) (*model.Thread, error) {
-	return u.forumRepo.updateThread(threadSlugOrID, message, title)
+	return u.forumRepo.UpdateThread(threadSlugOrID, message, title)
 }
 
-func (u *Usecase) createPosts(threadSlugOrID string, posts []postCreate) (model.Posts, error) {
-	return u.forumRepo.createPosts(threadSlugOrID, posts)
+func (u *Usecase) createPosts(threadSlugOrID string, posts []forumModel.PostCreate) (model.Posts, error) {
+	return u.forumRepo.CreatePosts(threadSlugOrID, posts)
 }
 
 func (u *Usecase) getForum(slug string) (*model.Forum, error) {
-	return u.forumRepo.getForumBySlug(slug)
+	return u.forumRepo.GetForumBySlug(slug)
 }
 
 func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) ([]*model.Thread, error) {
-	if _, err := u.forumRepo.getForumBySlug(forum); err != nil {
+	if _, err := u.forumRepo.GetForumBySlug(forum); err != nil {
 		return nil, err
 	}
 	var threads []*model.Thread
 	var err error
 	if since == "" {
-		threads, err = u.forumRepo.getForumThreads(forum, limit, desc)
+		threads, err = u.forumRepo.GetForumThreads(forum, limit, desc)
 	} else {
-		threads, err = u.forumRepo.getForumThreadsSince(forum, since, limit, desc)
+		threads, err = u.forumRepo.GetForumThreadsSince(forum, since, limit, desc)
 	}
 	if err != nil {
 		return nil, err
@@ -89,8 +91,8 @@ func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) ([]
 	return threads, nil
 }
 
-func (u *Usecase) voteForThread(threadSlugOrID string, vote vote) (thread *model.Thread, err error) {
-	thread, err = u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
+func (u *Usecase) voteForThread(threadSlugOrID string, vote forumModel.Vote) (thread *model.Thread, err error) {
+	thread, err = u.forumRepo.GetThreadBySlugOrID(threadSlugOrID)
 	if err != nil {
 		return
 	}
@@ -98,19 +100,19 @@ func (u *Usecase) voteForThread(threadSlugOrID string, vote vote) (thread *model
 	if err != nil {
 		return
 	}
-	newVotes, err := u.forumRepo.addThreadVote(thread, user.Nickname, vote.Voice)
+	newVotes, err := u.forumRepo.AddThreadVote(thread, user.Nickname, vote.Voice)
 	thread.Votes = newVotes
 	return
 }
 
 func (u *Usecase) getThread(threadSlugOrID string) (*model.Thread, error) {
-	return u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
+	return u.forumRepo.GetThreadBySlugOrID(threadSlugOrID)
 }
 
 func (u *Usecase) getThreadPosts(threadSlugOrID string, limit int, since *int, sort string, desc bool) (model.Posts, error) {
-	thread, err := u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
+	thread, err := u.forumRepo.GetThreadBySlugOrID(threadSlugOrID)
 	if err != nil {
 		return nil, err
 	}
-	return u.forumRepo.getThreadPosts(thread.ID, limit, since, sort, desc)
+	return u.forumRepo.GetThreadPosts(thread.ID, limit, since, sort, desc)
 }

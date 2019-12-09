@@ -1,15 +1,13 @@
-package forum
+package repository
 
 import (
-	"database/sql"
 	"fmt"
-	"github.com/jmoiron/sqlx"
+	forumModel "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
-	repo "github.com/kzon/technopark-sem2-db/pkg/repository"
+	"github.com/kzon/technopark-sem2-db/pkg/repository"
 	"github.com/kzon/technopark-sem2-db/pkg/util"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -27,95 +25,17 @@ type pageParams struct {
 	desc  bool
 }
 
-type Repository struct {
-	db *sqlx.DB
-}
-
-func NewRepository(db *sqlx.DB) Repository {
-	return Repository{db: db}
-}
-
-func (r *Repository) getForumByID(id int) (*model.Forum, error) {
-	return r.getForum("id=$1", id)
-}
-
-func (r *Repository) getForumBySlug(slug string) (*model.Forum, error) {
-	return r.getForum("slug=$1", slug)
-}
-
-func (r *Repository) getForum(filter string, params ...interface{}) (*model.Forum, error) {
-	forum := model.Forum{}
-	err := r.db.Get(&forum, `select * from forum where `+filter, params...)
-	if err != nil {
-		return nil, repo.Error(err)
-	}
-	return &forum, nil
-}
-
-func (r *Repository) getForumThreads(forum string, limit int, desc bool) (model.Threads, error) {
-	query := "select * from thread where forum = $1 order by created"
-	if desc {
-		query += " desc"
-	}
-	query += " limit " + strconv.Itoa(limit)
-	var threads model.Threads
-	err := r.db.Select(&threads, query, forum)
-	return threads, err
-}
-
-func (r *Repository) getForumThreadsSince(forum, since string, limit int, desc bool) (model.Threads, error) {
-	query := "select * from thread where forum = $1"
-	if desc {
-		query += " and created <= $2"
-	} else {
-		query += " and created >= $2"
-	}
-	query += " order by created"
-	if desc {
-		query += " desc"
-	}
-	query += " limit " + strconv.Itoa(limit)
-	threads := make(model.Threads, 0)
-	err := r.db.Select(&threads, query, forum, since)
-	return threads, err
-}
-
-func (r *Repository) getThreadByID(id int) (*model.Thread, error) {
-	return r.getThread("id=$1", id)
-}
-
-func (r *Repository) getThreadBySlug(slug string) (*model.Thread, error) {
-	return r.getThread("slug=$1", slug)
-}
-
-func (r *Repository) getThreadBySlugOrID(slugOrID string) (*model.Thread, error) {
-	id, err := strconv.Atoi(slugOrID)
-	if err != nil {
-		return r.getThread("slug=$1", slugOrID)
-	}
-	return r.getThread("id=$1", id)
-}
-
-func (r *Repository) getThread(filter string, params ...interface{}) (*model.Thread, error) {
-	thread := model.Thread{}
-	err := r.db.Get(&thread, "select * from thread where "+filter, params...)
-	if err != nil {
-		return nil, repo.Error(err)
-	}
-	return &thread, nil
-}
-
 func (r *Repository) getPostByID(id int) (*model.Post, error) {
 	return r.getPost("id=$1", id)
 }
 
 func (r *Repository) getPost(filter string, params ...interface{}) (*model.Post, error) {
-	post := model.Post{}
-	err := r.db.Get(&post, "select * from post where "+filter, params...)
+	p := model.Post{}
+	err := r.db.Get(&p, "select * from post where "+filter, params...)
 	if err != nil {
-		return nil, repo.Error(err)
+		return nil, repository.Error(err)
 	}
-	return &post, nil
+	return &p, nil
 }
 
 func (r *Repository) getPosts(orderBy []string, limit int, filter string, params ...interface{}) (model.Posts, error) {
@@ -128,7 +48,7 @@ func (r *Repository) getPosts(orderBy []string, limit int, filter string, params
 	return posts, err
 }
 
-func (r *Repository) getThreadPosts(thread, limit int, since *int, sort string, desc bool) (model.Posts, error) {
+func (r *Repository) GetThreadPosts(thread, limit int, since *int, sort string, desc bool) (model.Posts, error) {
 	switch sort {
 	case SortFlat, "":
 		return r.getThreadPostsFlat(thread, limit, since, desc)
@@ -287,73 +207,12 @@ func (r *Repository) filterPostsTree(tree model.Posts, minParent int, params pag
 	return filtered
 }
 
-func (r *Repository) createForum(title, slug, user string) (*model.Forum, error) {
-	var id int
-	err := r.db.
-		QueryRow(`insert into forum (title, slug, "user") values ($1, $2, $3) returning id`, title, slug, user).
-		Scan(&id)
+func (r *Repository) CreatePosts(threadSlugOrID string, posts []forumModel.PostCreate) (model.Posts, error) {
+	t, err := r.GetThreadBySlugOrID(threadSlugOrID)
 	if err != nil {
 		return nil, err
 	}
-	return r.getForumByID(id)
-}
-
-func (r *Repository) createThread(forum *model.Forum, thread threadCreate) (*model.Thread, error) {
-	id, err := r.createThreadInTx(forum, thread)
-	if err != nil {
-		return nil, err
-	}
-	return r.getThreadByID(id)
-}
-
-func (r *Repository) createThreadInTx(forum *model.Forum, thread threadCreate) (id int, err error) {
-	tx, err := r.db.Begin()
-	if err != nil {
-		return
-	}
-	err = tx.
-		QueryRow(
-			`insert into thread (title, author, forum, message, slug, created) values ($1, $2, $3, $4, $5, $6) returning id`,
-			thread.Title, thread.Author, forum.Slug, thread.Message, thread.Slug, thread.Created,
-		).
-		Scan(&id)
-	if err != nil {
-		tx.Rollback()
-		return
-	}
-	_, err = tx.Exec(`update forum set threads = threads + 1 where slug = $1`, forum.Slug)
-	if err != nil {
-		tx.Rollback()
-		return
-	}
-	err = tx.Commit()
-	return
-}
-
-func (r *Repository) updateThread(threadSlugOrID string, message, title string) (*model.Thread, error) {
-	thread, err := r.getThreadBySlugOrID(threadSlugOrID)
-	if err != nil {
-		return nil, err
-	}
-	if message != "" {
-		thread.Message = message
-	}
-	if title != "" {
-		thread.Title = title
-	}
-	_, err = r.db.Exec(
-		`update thread set "message" = $1, title = $2 where id = $3`,
-		thread.Message, thread.Title, thread.ID,
-	)
-	return thread, err
-}
-
-func (r *Repository) createPosts(threadSlugOrID string, posts []postCreate) (model.Posts, error) {
-	thread, err := r.getThreadBySlugOrID(threadSlugOrID)
-	if err != nil {
-		return nil, err
-	}
-	forum, err := r.getForumBySlug(thread.Forum)
+	f, err := r.GetForumBySlug(t.Forum)
 	if err != nil {
 		return nil, err
 	}
@@ -362,8 +221,8 @@ func (r *Repository) createPosts(threadSlugOrID string, posts []postCreate) (mod
 	}
 	now := time.Now()
 	result := make(model.Posts, 0, len(posts))
-	for _, post := range posts {
-		created, err := r.createPost(forum, thread, post, now)
+	for _, p := range posts {
+		created, err := r.createPost(f, t, p, now)
 		if err != nil {
 			return nil, err
 		}
@@ -372,7 +231,7 @@ func (r *Repository) createPosts(threadSlugOrID string, posts []postCreate) (mod
 	return result, nil
 }
 
-func (r *Repository) createPost(forum *model.Forum, thread *model.Thread, post postCreate, created time.Time) (*model.Post, error) {
+func (r *Repository) createPost(forum *model.Forum, thread *model.Thread, post forumModel.PostCreate, created time.Time) (*model.Post, error) {
 	id, err := r.createPostInTx(forum, thread, post, created)
 	if err != nil {
 		return nil, err
@@ -380,7 +239,7 @@ func (r *Repository) createPost(forum *model.Forum, thread *model.Thread, post p
 	return r.getPostByID(id)
 }
 
-func (r *Repository) createPostInTx(forum *model.Forum, thread *model.Thread, post postCreate, created time.Time) (id int, err error) {
+func (r *Repository) createPostInTx(forum *model.Forum, thread *model.Thread, post forumModel.PostCreate, created time.Time) (id int, err error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return
@@ -404,7 +263,7 @@ func (r *Repository) createPostInTx(forum *model.Forum, thread *model.Thread, po
 	return
 }
 
-func (r *Repository) postsParentsExists(posts []postCreate) bool {
+func (r *Repository) postsParentsExists(posts []forumModel.PostCreate) bool {
 	for _, post := range posts {
 		if post.Parent == 0 {
 			continue
@@ -414,45 +273,4 @@ func (r *Repository) postsParentsExists(posts []postCreate) bool {
 		}
 	}
 	return true
-}
-
-func (r *Repository) getVoice(nickname string, threadID int) (int, error) {
-	var voice int
-	err := r.db.Get(&voice, `select voice from vote where nickname = $1 and thread = $2`, nickname, threadID)
-	if err == sql.ErrNoRows {
-		return 0, nil
-	}
-	return voice, err
-}
-
-func (r *Repository) addThreadVote(thread *model.Thread, nickname string, voice int) (newVotes int, err error) {
-	oldVoice, err := r.getVoice(nickname, thread.ID)
-	if err != nil {
-		return
-	}
-	if oldVoice == voice {
-		return thread.Votes, nil
-	}
-	newVoice := voice - oldVoice
-	tx, err := r.db.Begin()
-	if err != nil {
-		return
-	}
-	err = tx.
-		QueryRow(`update thread set votes = votes + $1 where id = $2 returning votes`, newVoice, thread.ID).
-		Scan(&newVotes)
-	if err != nil {
-		tx.Rollback()
-		return
-	}
-	if _, err = tx.Exec(`delete from vote where thread = $1 and nickname = $2`, thread.ID, nickname); err != nil {
-		tx.Rollback()
-		return
-	}
-	if _, err = tx.Exec(`insert into vote (thread, nickname, voice) values ($1, $2, $3)`, thread.ID, nickname, voice); err != nil {
-		tx.Rollback()
-		return
-	}
-	err = tx.Commit()
-	return
 }

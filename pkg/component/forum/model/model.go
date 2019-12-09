@@ -1,13 +1,13 @@
-package forum
+package model
 
 type (
-	forumCreate struct {
+	ForumCreate struct {
 		Slug  string `json:"slug"`
 		Title string `json:"title"`
 		User  string `json:"user"`
 	}
 
-	threadCreate struct {
+	ThreadCreate struct {
 		Author  string `json:"author"`
 		Created string `json:"created"`
 		Message string `json:"message"`
@@ -15,18 +15,18 @@ type (
 		Title   string `json:"title"`
 	}
 
-	threadUpdate struct {
+	ThreadUpdate struct {
 		Message string `json:"message"`
 		Title   string `json:"title"`
 	}
 
-	postCreate struct {
+	PostCreate struct {
 		Author  string `json:"author"`
 		Message string `json:"message"`
 		Parent  int    `json:"parent"`
 	}
 
-	vote struct {
+	Vote struct {
 		Nickname string `json:"nickname"`
 		Voice    int    `json:"voice"`
 	}

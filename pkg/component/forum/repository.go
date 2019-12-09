@@ -7,9 +7,25 @@ import (
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	repo "github.com/kzon/technopark-sem2-db/pkg/repository"
+	"github.com/kzon/technopark-sem2-db/pkg/util"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
+
+const (
+	SortFlat       = "flat"
+	SortTree       = "tree"
+	SortParentTree = "parent_tree"
+)
+
+type pageParams struct {
+	limit int
+	since *int
+	sort  string
+	desc  bool
+}
 
 type Repository struct {
 	db *sqlx.DB
@@ -36,18 +52,18 @@ func (r *Repository) getForum(filter string, params ...interface{}) (*model.Foru
 	return &forum, nil
 }
 
-func (r *Repository) getForumThreads(forum string, limit int, desc bool) ([]*model.Thread, error) {
+func (r *Repository) getForumThreads(forum string, limit int, desc bool) (model.Threads, error) {
 	query := "select * from thread where forum = $1 order by created"
 	if desc {
 		query += " desc"
 	}
 	query += " limit " + strconv.Itoa(limit)
-	var threads []*model.Thread
+	var threads model.Threads
 	err := r.db.Select(&threads, query, forum)
 	return threads, err
 }
 
-func (r *Repository) getForumThreadsSince(forum, since string, limit int, desc bool) ([]*model.Thread, error) {
+func (r *Repository) getForumThreadsSince(forum, since string, limit int, desc bool) (model.Threads, error) {
 	query := "select * from thread where forum = $1"
 	if desc {
 		query += " and created <= $2"
@@ -59,7 +75,7 @@ func (r *Repository) getForumThreadsSince(forum, since string, limit int, desc b
 		query += " desc"
 	}
 	query += " limit " + strconv.Itoa(limit)
-	threads := make([]*model.Thread, 0)
+	threads := make(model.Threads, 0)
 	err := r.db.Select(&threads, query, forum, since)
 	return threads, err
 }
@@ -102,119 +118,173 @@ func (r *Repository) getPost(filter string, params ...interface{}) (*model.Post,
 	return &post, nil
 }
 
-func (r *Repository) getPosts(orderBy string, desc bool, limit int, filter string, params ...interface{}) ([]*model.Post, error) {
-	var posts []*model.Post
-	sort := ""
-	if desc {
-		sort = "desc"
+func (r *Repository) getPosts(orderBy []string, limit int, filter string, params ...interface{}) (model.Posts, error) {
+	query := fmt.Sprintf(`select * from post where %s order by %s`, filter, strings.Join(orderBy, ","))
+	if limit > 0 {
+		query += fmt.Sprintf(" limit %d", limit)
 	}
-	err := r.db.Select(&posts,
-		fmt.Sprintf(`select * from post where %s order by %s %s limit %d`, filter, orderBy, sort, limit),
-		params...,
-	)
+	posts := make(model.Posts, 0, limit)
+	err := r.db.Select(&posts, query, params...)
 	return posts, err
 }
 
-func (r *Repository) getThreadPosts(thread, limit int, since, sort string, desc bool) ([]*model.Post, error) {
+func (r *Repository) getThreadPosts(thread, limit int, since *int, sort string, desc bool) (model.Posts, error) {
 	switch sort {
-	case "", "flat":
+	case SortFlat, "":
 		return r.getThreadPostsFlat(thread, limit, since, desc)
-	case "tree":
-		return r.getThreadPostsTree(thread, 0, limit, since, desc)
-	case "parent_tree":
-		return r.getThreadPostsParentTree(thread, limit, since, desc)
+	case SortTree, SortParentTree:
+		params := pageParams{
+			limit: limit,
+			since: since,
+			sort:  sort,
+			desc:  desc,
+		}
+		return r.getThreadPostsTree(thread, params)
 	}
 	return nil, fmt.Errorf("%w: unknown sort method '%s'", consts.ErrNotFound, sort)
 }
 
-func (r *Repository) getThreadPostsFlat(thread, limit int, since string, desc bool) ([]*model.Post, error) {
-	posts := make([]*model.Post, 0)
-	sort := ""
+func (r *Repository) getThreadPostsFlat(thread, limit int, since *int, desc bool) (model.Posts, error) {
+	order := "asc"
 	if desc {
-		sort = "desc"
+		order = "desc"
 	}
-	var err error
-	if since == "" {
-		err = r.db.Select(&posts,
-			fmt.Sprintf(`select * from post where thread = $1 order by created %s, id %s limit $2`, sort, sort),
-			thread, limit,
-		)
-	} else {
-		err = r.db.Select(&posts,
-			fmt.Sprintf(`select * from post where thread = $1 and id > $2 order by created %s, id %s limit $3`, sort, sort),
-			thread, since, limit,
-		)
+	orderBy := []string{"created " + order, "id " + order}
+	filter := "thread = $1"
+	params := []interface{}{thread}
+	if since != nil {
+		if desc {
+			filter += " and id < $2"
+		} else {
+			filter += " and id > $2"
+		}
+		params = append(params, *since)
 	}
-	return posts, err
+	return r.getPosts(orderBy, limit, filter, params...)
 }
 
-func (r *Repository) getPostsByParent(thread, parent, limit int, since string, desc bool) ([]*model.Post, error) {
-	filter := "thread = $1 and parent = $2"
-	params := []interface{}{thread, parent}
-	if since != "" {
-		filter += " and id > $3"
-		params = append(params, since)
+func (r *Repository) getThreadPostsTree(thread int, params pageParams) (model.Posts, error) {
+	order := "asc"
+	if params.desc && params.sort != SortParentTree {
+		order = "desc"
 	}
-	return r.getPosts("created, id", desc, limit, filter, params...)
-}
-
-func (r *Repository) getThreadPostsTree(thread, parent, limit int, since string, desc bool) ([]*model.Post, error) {
-	rootPosts, err := r.getPostsByParent(thread, parent, limit, since, desc)
+	posts, err := r.getPosts([]string{"created " + order, "id " + order}, 0, "thread = $1", thread)
 	if err != nil {
 		return nil, err
 	}
-	if len(rootPosts) == 0 {
-		return rootPosts, nil
+
+	postsByParent, minParent := r.indexPostsByParent(posts)
+
+	if params.desc && params.sort == SortParentTree {
+		postsByParent[minParent] = r.sortPostsDesc(postsByParent[minParent])
 	}
-	result := make([]*model.Post, 0, limit/2)
-	count := 0
-	for _, rootPost := range rootPosts {
-		childPosts, err := r.getThreadPostsTree(thread, rootPost.ID, limit-count-1, since, desc)
-		if err != nil {
-			return nil, err
+	tree := r.getPostsTree(postsByParent, minParent, params)
+	if params.since == nil {
+		return tree, nil
+	}
+	return r.filterPostsTree(tree, minParent, params), nil
+}
+
+func (r *Repository) indexPostsByParent(posts model.Posts) (map[int]model.Posts, int) {
+	postsByParent := make(map[int]model.Posts)
+	minParent := util.MaxInt
+	for _, post := range posts {
+		parent := post.Parent
+		if _, ok := postsByParent[parent]; !ok {
+			postsByParent[parent] = make(model.Posts, 0, 2)
+			if parent < minParent {
+				minParent = parent
+			}
 		}
-		if desc {
-			result = append(result, childPosts...)
-			result = append(result, rootPost)
-		} else {
-			result = append(result, rootPost)
-			result = append(result, childPosts...)
+		postsByParent[parent] = append(postsByParent[parent], post)
+	}
+	return postsByParent, minParent
+}
+
+type postSortDesc model.Posts
+
+func (p postSortDesc) Len() int {
+	return len(p)
+}
+
+func (p postSortDesc) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+func (p postSortDesc) Less(i, j int) bool {
+	p1, p2 := p[i], p[j]
+	if p1.Created == p2.Created {
+		return p1.ID > p2.ID
+	}
+	return p1.Created > p2.Created
+}
+
+func (r *Repository) sortPostsDesc(posts model.Posts) model.Posts {
+	sort.Sort(postSortDesc(posts))
+	return posts
+}
+
+func (r *Repository) getPostsTree(postsByParent map[int]model.Posts, parent int, params pageParams) model.Posts {
+	result := make(model.Posts, 0)
+	for i, parentPost := range postsByParent[parent] {
+		childParams := params
+		if params.since == nil && params.sort != SortParentTree {
+			childParams.limit -= len(result) + 1
+			if params.desc && childParams.limit == 0 {
+				childParams.limit = 1
+			}
 		}
-		count += len(childPosts) + 1
-		if count == limit {
+		childPosts := r.getPostsTree(postsByParent, parentPost.ID, childParams)
+
+		switch params.sort {
+		case SortParentTree:
+			result = append(result, parentPost)
+			result = append(result, childPosts...)
+		default:
+			posts := make(model.Posts, 0)
+			if params.desc {
+				posts = append(posts, childPosts...)
+				posts = append(posts, parentPost)
+			} else {
+				posts = append(posts, parentPost)
+				posts = append(posts, childPosts...)
+			}
+			if len(result)+len(posts) > params.limit && params.since == nil {
+				result = append(result, posts[0:params.limit-len(result)]...)
+			} else {
+				result = append(result, posts...)
+			}
+		}
+
+		if r.postsTreeLimitExceeded(i, len(result), params) && params.since == nil {
 			break
 		}
 	}
-	return result, nil
+	return result
 }
 
-func (r *Repository) getThreadPostsParentTree(thread, limit int, since string, desc bool) ([]*model.Post, error) {
-	sort := ""
-	if desc {
-		sort = "desc"
+func (r *Repository) postsTreeLimitExceeded(i int, l int, params pageParams) bool {
+	if params.sort == SortParentTree {
+		return i == params.limit-1
 	}
-	var rootPosts []*model.Post
-	err := r.db.Select(&rootPosts,
-		fmt.Sprintf(`select * from post where thread = $1 and parent = 0 order by created %s, id %s limit $2`, sort, sort),
-		thread, limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*model.Post, 0)
-	for _, rootPost := range rootPosts {
-		var childPosts []*model.Post
-		err := r.db.Select(&childPosts,
-			`select * from post where thread = $1 and parent = $2 order by created, id`,
-			thread, rootPost.ID,
-		)
-		if err != nil {
-			return nil, err
+	return l == params.limit
+}
+
+func (r *Repository) filterPostsTree(tree model.Posts, minParent int, params pageParams) model.Posts {
+	filtered := make(model.Posts, 0, params.limit)
+	count := 0
+	for i := range tree {
+		if count != 0 || (i > 0 && tree[i-1].ID == *params.since) {
+			filtered = append(filtered, tree[i])
+			if params.sort != SortParentTree || tree[i].Parent == minParent {
+				count++
+			}
 		}
-		result = append(result, rootPost)
-		result = append(result, childPosts...)
+		if count == params.limit {
+			break
+		}
 	}
-	return result, nil
+	return filtered
 }
 
 func (r *Repository) createForum(title, slug, user string) (*model.Forum, error) {
@@ -242,12 +312,12 @@ func (r *Repository) createThread(forum *model.Forum, thread threadCreate) (*mod
 	return r.getThreadByID(id)
 }
 
-func (r *Repository) createPosts(thread *model.Thread, posts []postCreate) ([]*model.Post, error) {
+func (r *Repository) createPosts(thread *model.Thread, posts []postCreate) (model.Posts, error) {
 	if !r.postsParentsExists(posts) {
 		return nil, fmt.Errorf("%w: post parent do not exists", consts.ErrConflict)
 	}
 	now := time.Now()
-	result := make([]*model.Post, 0, len(posts))
+	result := make(model.Posts, 0, len(posts))
 	for _, post := range posts {
 		created, err := r.createPost(thread, post, now)
 		if err != nil {

@@ -60,7 +60,7 @@ func (u *Usecase) createThread(forumSlug string, thread threadCreate) (*model.Th
 	return u.forumRepo.createThread(forum, thread)
 }
 
-func (u *Usecase) createPosts(threadSlugOrID string, posts []postCreate) ([]*model.Post, error) {
+func (u *Usecase) createPosts(threadSlugOrID string, posts []postCreate) (model.Posts, error) {
 	thread, err := u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func (u *Usecase) getThread(threadSlugOrID string) (*model.Thread, error) {
 	return u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
 }
 
-func (u *Usecase) getThreadPosts(threadSlugOrID string, limit int, since, sort string, desc bool) ([]*model.Post, error) {
+func (u *Usecase) getThreadPosts(threadSlugOrID string, limit int, since *int, sort string, desc bool) (model.Posts, error) {
 	thread, err := u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
 	if err != nil {
 		return nil, err

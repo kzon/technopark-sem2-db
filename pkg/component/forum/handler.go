@@ -108,12 +108,18 @@ func (h *Handler) handleGetThreadDetails(c echo.Context) error {
 }
 
 func (h *Handler) handleGetThreadPosts(c echo.Context) error {
+	sp := c.QueryParam("since")
+	var since *int = nil
+	if sp != "" {
+		n, _ := strconv.Atoi(sp)
+		since = &n
+	}
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	desc, _ := strconv.ParseBool(c.QueryParam("desc"))
 	posts, err := h.usecase.getThreadPosts(
 		c.Param("slug_or_id"),
 		limit,
-		c.QueryParam("since"),
+		since,
 		c.QueryParam("sort"),
 		desc,
 	)

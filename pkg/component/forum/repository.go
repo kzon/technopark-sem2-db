@@ -299,17 +299,35 @@ func (r *Repository) createForum(title, slug, user string) (*model.Forum, error)
 }
 
 func (r *Repository) createThread(forum *model.Forum, thread threadCreate) (*model.Thread, error) {
-	var id int
-	err := r.db.
+	id, err := r.createThreadInTx(forum, thread)
+	if err != nil {
+		return nil, err
+	}
+	return r.getThreadByID(id)
+}
+
+func (r *Repository) createThreadInTx(forum *model.Forum, thread threadCreate) (id int, err error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return
+	}
+	err = tx.
 		QueryRow(
 			`insert into thread (title, author, forum, message, slug, created) values ($1, $2, $3, $4, $5, $6) returning id`,
 			thread.Title, thread.Author, forum.Slug, thread.Message, thread.Slug, thread.Created,
 		).
 		Scan(&id)
 	if err != nil {
-		return nil, err
+		tx.Rollback()
+		return
 	}
-	return r.getThreadByID(id)
+	_, err = tx.Exec(`update forum set threads = threads + 1 where slug = $1`, forum.Slug)
+	if err != nil {
+		tx.Rollback()
+		return
+	}
+	err = tx.Commit()
+	return
 }
 
 func (r *Repository) updateThread(threadSlugOrID string, message, title string) (*model.Thread, error) {
@@ -330,14 +348,22 @@ func (r *Repository) updateThread(threadSlugOrID string, message, title string) 
 	return thread, err
 }
 
-func (r *Repository) createPosts(thread *model.Thread, posts []postCreate) (model.Posts, error) {
+func (r *Repository) createPosts(threadSlugOrID string, posts []postCreate) (model.Posts, error) {
+	thread, err := r.getThreadBySlugOrID(threadSlugOrID)
+	if err != nil {
+		return nil, err
+	}
+	forum, err := r.getForumBySlug(thread.Forum)
+	if err != nil {
+		return nil, err
+	}
 	if !r.postsParentsExists(posts) {
 		return nil, fmt.Errorf("%w: post parent do not exists", consts.ErrConflict)
 	}
 	now := time.Now()
 	result := make(model.Posts, 0, len(posts))
 	for _, post := range posts {
-		created, err := r.createPost(thread, post, now)
+		created, err := r.createPost(forum, thread, post, now)
 		if err != nil {
 			return nil, err
 		}
@@ -346,18 +372,36 @@ func (r *Repository) createPosts(thread *model.Thread, posts []postCreate) (mode
 	return result, nil
 }
 
-func (r *Repository) createPost(thread *model.Thread, post postCreate, created time.Time) (*model.Post, error) {
-	var id int
-	err := r.db.
+func (r *Repository) createPost(forum *model.Forum, thread *model.Thread, post postCreate, created time.Time) (*model.Post, error) {
+	id, err := r.createPostInTx(forum, thread, post, created)
+	if err != nil {
+		return nil, err
+	}
+	return r.getPostByID(id)
+}
+
+func (r *Repository) createPostInTx(forum *model.Forum, thread *model.Thread, post postCreate, created time.Time) (id int, err error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return
+	}
+	err = tx.
 		QueryRow(
 			`insert into post (thread, forum, parent, author, message, created) values ($1, $2, $3, $4, $5, $6) returning id`,
 			thread.ID, thread.Forum, post.Parent, post.Author, post.Message, created,
 		).
 		Scan(&id)
 	if err != nil {
-		return nil, err
+		tx.Rollback()
+		return
 	}
-	return r.getPostByID(id)
+	_, err = tx.Exec(`update forum set posts = posts + 1 where slug = $1`, forum.Slug)
+	if err != nil {
+		tx.Rollback()
+		return
+	}
+	err = tx.Commit()
+	return
 }
 
 func (r *Repository) postsParentsExists(posts []postCreate) bool {

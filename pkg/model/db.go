@@ -1,6 +1,14 @@
 package model
 
 type (
+	User struct {
+		ID       int    `db:"id" json:"-"`
+		Nickname string `db:"nickname" json:"nickname"`
+		Fullname string `db:"fullname" json:"fullname"`
+		About    string `db:"about" json:"about"`
+		Email    string `db:"email" json:"email"`
+	}
+
 	Forum struct {
 		ID      int    `db:"id" json:"-"`
 		Title   string `db:"title" json:"title"`
@@ -8,14 +16,6 @@ type (
 		Slug    string `db:"slug" json:"slug"`
 		Posts   int    `db:"posts" json:"posts"`
 		Threads int    `db:"threads" json:"threads"`
-	}
-
-	User struct {
-		ID       int    `db:"id" json:"-"`
-		Nickname string `db:"nickname" json:"nickname"`
-		Fullname string `db:"fullname" json:"fullname"`
-		About    string `db:"about" json:"about"`
-		Email    string `db:"email" json:"email"`
 	}
 
 	Thread struct {

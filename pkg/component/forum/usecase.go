@@ -65,11 +65,7 @@ func (u *Usecase) updateThread(threadSlugOrID string, message, title string) (*m
 }
 
 func (u *Usecase) createPosts(threadSlugOrID string, posts []postCreate) (model.Posts, error) {
-	thread, err := u.forumRepo.getThreadBySlugOrID(threadSlugOrID)
-	if err != nil {
-		return nil, err
-	}
-	return u.forumRepo.createPosts(thread, posts)
+	return u.forumRepo.createPosts(threadSlugOrID, posts)
 }
 
 func (u *Usecase) getForum(slug string) (*model.Forum, error) {

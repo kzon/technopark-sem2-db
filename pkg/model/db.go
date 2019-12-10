@@ -47,6 +47,7 @@ type (
 		Voice    int    `db:"voice" json:"voice"`
 	}
 
+	Users   = []*User
 	Threads = []*Thread
 	Posts   = []*Post
 )

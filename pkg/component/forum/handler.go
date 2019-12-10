@@ -19,6 +19,7 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	e.POST("/api/forum/:slug/create", handler.handleThreadCreate)
 	e.GET("/api/forum/:slug/details", handler.handleGetForumDetails)
 	e.GET("/api/forum/:slug/threads", handler.handleGetForumThreads)
+	e.GET("/api/forum/:slug/users", handler.handleGetForumUsers)
 	e.POST("/api/thread/:slug_or_id/create", handler.handlePostCreate)
 	e.POST("/api/thread/:slug_or_id/vote", handler.handleVoteForThread)
 	e.GET("/api/thread/:slug_or_id/details", handler.handleGetThreadDetails)
@@ -75,6 +76,16 @@ func (h *Handler) handleGetForumThreads(c echo.Context) error {
 		return delivery.Error(c, err)
 	}
 	return delivery.Ok(c, threads)
+}
+
+func (h *Handler) handleGetForumUsers(c echo.Context) error {
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	desc, _ := strconv.ParseBool(c.QueryParam("desc"))
+	users, err := h.usecase.getForumUsers(c.Param("slug"), c.QueryParam("since"), limit, desc)
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, users)
 }
 
 func (h *Handler) handlePostCreate(c echo.Context) error {

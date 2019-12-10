@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	model2 "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
@@ -8,31 +9,56 @@ import (
 )
 
 func (r *Repository) GetForumThreads(forum string, limit int, desc bool) (model.Threads, error) {
-	query := "select * from thread where forum = $1 order by created"
-	if desc {
-		query += " desc"
-	}
-	query += " limit " + strconv.Itoa(limit)
+	query := fmt.Sprintf(
+		"select * from thread where forum = $1 order by created %s limit %d",
+		r.getOrder(desc), limit,
+	)
 	var threads model.Threads
 	err := r.db.Select(&threads, query, forum)
 	return threads, err
 }
 
 func (r *Repository) GetForumThreadsSince(forum, since string, limit int, desc bool) (model.Threads, error) {
-	query := "select * from thread where forum = $1"
+	createdCond := ">="
 	if desc {
-		query += " and created <= $2"
-	} else {
-		query += " and created >= $2"
+		createdCond = "<="
 	}
-	query += " order by created"
-	if desc {
-		query += " desc"
-	}
-	query += " limit " + strconv.Itoa(limit)
+	query := fmt.Sprintf(
+		"select * from thread where forum = $1 and created %s $2 order by created %s limit %d",
+		createdCond, r.getOrder(desc), limit,
+	)
 	threads := make(model.Threads, 0)
 	err := r.db.Select(&threads, query, forum, since)
 	return threads, err
+}
+
+func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool) (model.Users, error) {
+	forum, err := r.GetForumBySlug(forumSlug)
+	if err != nil {
+		return nil, err
+	}
+	sinceFilter := ""
+	if since != "" {
+		if desc {
+			sinceFilter = "and nickname < $2"
+		} else {
+			sinceFilter = "and nickname > $2"
+		}
+	}
+	nicknamesQuery := `
+		select distinct post.author from post where forum = $1
+		union select thread.author from thread where forum = $1`
+	query := fmt.Sprintf(
+		`select * from "user" where nickname in (%s) %s order by nickname %s limit %d`,
+		nicknamesQuery, sinceFilter, r.getOrder(desc), limit,
+	)
+	users := make(model.Users, 0)
+	if since == "" {
+		err = r.db.Select(&users, query, forum.Slug)
+	} else {
+		err = r.db.Select(&users, query, forum.Slug, since)
+	}
+	return users, err
 }
 
 func (r *Repository) GetThreadByID(id int) (*model.Thread, error) {

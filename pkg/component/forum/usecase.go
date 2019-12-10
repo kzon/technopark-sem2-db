@@ -74,11 +74,11 @@ func (u *Usecase) getForum(slug string) (*model.Forum, error) {
 	return u.forumRepo.GetForumBySlug(slug)
 }
 
-func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) ([]*model.Thread, error) {
+func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) (model.Threads, error) {
 	if _, err := u.forumRepo.GetForumBySlug(forum); err != nil {
 		return nil, err
 	}
-	var threads []*model.Thread
+	var threads model.Threads
 	var err error
 	if since == "" {
 		threads, err = u.forumRepo.GetForumThreads(forum, limit, desc)
@@ -89,6 +89,10 @@ func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) ([]
 		return nil, err
 	}
 	return threads, nil
+}
+
+func (u *Usecase) getForumUsers(forum, since string, limit int, desc bool) (model.Users, error) {
+	return u.forumRepo.GetForumUsers(forum, since, limit, desc)
 }
 
 func (u *Usecase) voteForThread(threadSlugOrID string, vote forumModel.Vote) (thread *model.Thread, err error) {

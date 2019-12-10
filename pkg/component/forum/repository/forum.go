@@ -41,3 +41,10 @@ func (r *Repository) CreateForum(title, slug, user string) (*model.Forum, error)
 	}
 	return r.GetForumByID(id)
 }
+
+func (r *Repository) getOrder(desc bool) string {
+	if desc {
+		return "desc"
+	}
+	return "asc"
+}

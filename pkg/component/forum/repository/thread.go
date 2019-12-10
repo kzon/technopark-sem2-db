@@ -48,9 +48,13 @@ func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool
 	nicknamesQuery := `
 		select distinct post.author from post where forum = $1
 		union select thread.author from thread where forum = $1`
+	limitExpr := ""
+	if limit > 0 {
+		limitExpr = fmt.Sprintf("limit %d", limit)
+	}
 	query := fmt.Sprintf(
-		`select * from "user" where nickname in (%s) %s order by nickname %s limit %d`,
-		nicknamesQuery, sinceFilter, r.getOrder(desc), limit,
+		`select * from "user" where nickname in (%s) %s order by nickname %s %s`,
+		nicknamesQuery, sinceFilter, r.getOrder(desc), limitExpr,
 	)
 	users := make(model.Users, 0)
 	if since == "" {

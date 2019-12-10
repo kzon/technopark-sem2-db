@@ -15,23 +15,23 @@ type Handler struct {
 }
 
 func NewHandler(e *echo.Echo, usecase Usecase) Handler {
-	handler := Handler{usecase: usecase}
-	e.POST("/api/forum/create", handler.handleForumCreate)
-	e.POST("/api/forum/:slug/create", handler.handleThreadCreate)
-	e.GET("/api/forum/:slug/details", handler.handleGetForumDetails)
-	e.GET("/api/forum/:slug/threads", handler.handleGetForumThreads)
-	e.GET("/api/forum/:slug/users", handler.handleGetForumUsers)
+	h := Handler{usecase: usecase}
+	e.POST("/api/forum/create", h.handleForumCreate)
+	e.POST("/api/forum/:slug/create", h.handleThreadCreate)
+	e.GET("/api/forum/:slug/details", h.handleGetForumDetails)
+	e.GET("/api/forum/:slug/threads", h.handleGetForumThreads)
+	e.GET("/api/forum/:slug/users", h.handleGetForumUsers)
 
-	e.POST("/api/thread/:slug_or_id/create", handler.handlePostCreate)
-	e.POST("/api/thread/:slug_or_id/vote", handler.handleVoteForThread)
-	e.GET("/api/thread/:slug_or_id/details", handler.handleGetThreadDetails)
-	e.POST("/api/thread/:slug_or_id/details", handler.handleThreadUpdate)
-	e.GET("/api/thread/:slug_or_id/posts", handler.handleGetThreadPosts)
+	e.POST("/api/thread/:slug_or_id/create", h.handlePostCreate)
+	e.POST("/api/thread/:slug_or_id/vote", h.handleVoteForThread)
+	e.GET("/api/thread/:slug_or_id/details", h.handleGetThreadDetails)
+	e.POST("/api/thread/:slug_or_id/details", h.handleThreadUpdate)
+	e.GET("/api/thread/:slug_or_id/posts", h.handleGetThreadPosts)
 
-	e.GET("/api/post/:id/details", handler.handleGetPostDetails)
-	e.POST("/api/post/:id/details", handler.handlePostUpdate)
+	e.GET("/api/post/:id/details", h.handleGetPostDetails)
+	e.POST("/api/post/:id/details", h.handlePostUpdate)
 
-	return handler
+	return h
 }
 
 func (h Handler) handleForumCreate(c echo.Context) error {

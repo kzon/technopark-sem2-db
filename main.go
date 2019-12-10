@@ -4,7 +4,8 @@ import (
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/kzon/technopark-sem2-db/pkg/component/forum"
-	"github.com/kzon/technopark-sem2-db/pkg/component/forum/repository"
+	forumRepository "github.com/kzon/technopark-sem2-db/pkg/component/forum/repository"
+	"github.com/kzon/technopark-sem2-db/pkg/component/service"
 	"github.com/kzon/technopark-sem2-db/pkg/component/user"
 	"github.com/labstack/echo"
 	"log"
@@ -24,9 +25,13 @@ func main() {
 	userUsecase := user.NewUsecase(userRepo)
 	user.NewHandler(e, userUsecase)
 
-	forumRepo := repository.NewRepository(db)
+	forumRepo := forumRepository.NewRepository(db)
 	forumUsecase := forum.NewUsecase(forumRepo, userRepo)
 	forum.NewHandler(e, forumUsecase)
+
+	serviceRepo := service.NewRepository(db)
+	serviceUsecase := service.NewUsecase(serviceRepo)
+	service.NewHandler(e, serviceUsecase)
 
 	log.Fatal(e.Start(":" + PORT))
 }

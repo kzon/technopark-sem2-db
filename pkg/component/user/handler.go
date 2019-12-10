@@ -12,11 +12,11 @@ type Handler struct {
 }
 
 func NewHandler(e *echo.Echo, usecase Usecase) Handler {
-	handler := Handler{usecase: usecase}
-	e.POST("/api/user/:nickname/create", handler.handleUserCreate)
-	e.GET("/api/user/:nickname/profile", handler.handleGetUserProfile)
-	e.POST("/api/user/:nickname/profile", handler.handleUserUpdate)
-	return handler
+	h := Handler{usecase: usecase}
+	e.POST("/api/user/:nickname/create", h.handleUserCreate)
+	e.GET("/api/user/:nickname/profile", h.handleGetUserProfile)
+	e.POST("/api/user/:nickname/profile", h.handleUserUpdate)
+	return h
 }
 
 func (h *Handler) handleUserCreate(c echo.Context) error {

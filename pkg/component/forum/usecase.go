@@ -120,3 +120,36 @@ func (u *Usecase) getThreadPosts(threadSlugOrID string, limit int, since *int, s
 	}
 	return u.forumRepo.GetThreadPosts(thread.ID, limit, since, sort, desc)
 }
+
+type postDetails struct {
+	Post   *model.Post
+	Author *model.User
+	Forum  *model.Forum
+	Thread *model.Thread
+}
+
+func (u *Usecase) getPostDetails(id int, related []string) (*postDetails, error) {
+	post, err := u.forumRepo.GetPostByID(id)
+	if err != nil {
+		return nil, err
+	}
+	details := postDetails{Post: post}
+	for _, r := range related {
+		switch r {
+		case "user":
+			details.Author, err = u.userRepo.GetUserByNickname(post.Author)
+		case "forum":
+			details.Forum, err = u.forumRepo.GetForumBySlug(post.Forum)
+		case "thread":
+			details.Thread, err = u.forumRepo.GetThreadByID(post.Thread)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &details, nil
+}
+
+func (u *Usecase) updatePost(id int, message string) (*model.Post, error) {
+	return u.forumRepo.UpdatePost(id, message)
+}

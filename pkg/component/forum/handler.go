@@ -7,6 +7,7 @@ import (
 	"github.com/kzon/technopark-sem2-db/pkg/delivery"
 	"github.com/labstack/echo"
 	"strconv"
+	"strings"
 )
 
 type Handler struct {
@@ -20,11 +21,16 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	e.GET("/api/forum/:slug/details", handler.handleGetForumDetails)
 	e.GET("/api/forum/:slug/threads", handler.handleGetForumThreads)
 	e.GET("/api/forum/:slug/users", handler.handleGetForumUsers)
+
 	e.POST("/api/thread/:slug_or_id/create", handler.handlePostCreate)
 	e.POST("/api/thread/:slug_or_id/vote", handler.handleVoteForThread)
 	e.GET("/api/thread/:slug_or_id/details", handler.handleGetThreadDetails)
 	e.POST("/api/thread/:slug_or_id/details", handler.handleThreadUpdate)
 	e.GET("/api/thread/:slug_or_id/posts", handler.handleGetThreadPosts)
+
+	e.GET("/api/post/:id/details", handler.handleGetPostDetails)
+	e.POST("/api/post/:id/details", handler.handlePostUpdate)
+
 	return handler
 }
 
@@ -152,4 +158,40 @@ func (h *Handler) handleGetThreadPosts(c echo.Context) error {
 		return delivery.Error(c, err)
 	}
 	return delivery.Ok(c, posts)
+}
+
+func (h *Handler) handleGetPostDetails(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	related := strings.Split(c.QueryParam("related"), ",")
+	details, err := h.usecase.getPostDetails(id, related)
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	result := map[string]interface{}{
+		"post": details.Post,
+	}
+	for _, r := range related {
+		switch r {
+		case "user":
+			result["author"] = details.Author
+		case "forum":
+			result["forum"] = details.Forum
+		case "thread":
+			result["thread"] = details.Thread
+		}
+	}
+	return delivery.Ok(c, result)
+}
+
+func (h *Handler) handlePostUpdate(c echo.Context) error {
+	t := forumModel.PostUpdate{}
+	if err := c.Bind(&t); err != nil {
+		return delivery.BadRequest(c, err)
+	}
+	id, _ := strconv.Atoi(c.Param("id"))
+	thread, err := h.usecase.updatePost(id, t.Message)
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, thread)
 }

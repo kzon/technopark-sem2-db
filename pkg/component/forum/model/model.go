@@ -26,6 +26,10 @@ type (
 		Parent  int    `json:"parent"`
 	}
 
+	PostUpdate struct {
+		Message string `json:"message"`
+	}
+
 	Vote struct {
 		Nickname string `json:"nickname"`
 		Voice    int    `json:"voice"`

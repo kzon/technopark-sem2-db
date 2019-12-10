@@ -25,7 +25,7 @@ type pageParams struct {
 	desc  bool
 }
 
-func (r *Repository) getPostByID(id int) (*model.Post, error) {
+func (r *Repository) GetPostByID(id int) (*model.Post, error) {
 	return r.getPost("id=$1", id)
 }
 
@@ -236,7 +236,7 @@ func (r *Repository) createPost(forum *model.Forum, thread *model.Thread, post f
 	if err != nil {
 		return nil, err
 	}
-	return r.getPostByID(id)
+	return r.GetPostByID(id)
 }
 
 func (r *Repository) createPostInTx(forum *model.Forum, thread *model.Thread, post forumModel.PostCreate, created time.Time) (id int, err error) {
@@ -268,9 +268,22 @@ func (r *Repository) postsParentsExists(posts []forumModel.PostCreate) bool {
 		if post.Parent == 0 {
 			continue
 		}
-		if _, err := r.getPostByID(post.Parent); err != nil {
+		if _, err := r.GetPostByID(post.Parent); err != nil {
 			return false
 		}
 	}
 	return true
+}
+
+func (r *Repository) UpdatePost(id int, message string) (*model.Post, error) {
+	if message != "" {
+		_, err := r.db.Exec(
+			`update post set "message" = $1, "isEdited" = true where id = $2 and "message" <> $1`,
+			message, id,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return r.GetPostByID(id)
 }

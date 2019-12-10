@@ -67,7 +67,42 @@ func (u *Usecase) updateThread(threadSlugOrID string, message, title string) (*m
 }
 
 func (u *Usecase) createPosts(threadSlugOrID string, posts []forumModel.PostCreate) (model.Posts, error) {
-	return u.forumRepo.CreatePosts(threadSlugOrID, posts)
+	thread, err := u.forumRepo.GetThreadBySlugOrID(threadSlugOrID)
+	if err != nil {
+		return nil, err
+	}
+	if err := u.checkPostsCreate(posts, thread.ID); err != nil {
+		return nil, err
+	}
+	return u.forumRepo.CreatePosts(posts, thread)
+}
+
+func (u *Usecase) checkPostsCreate(posts []forumModel.PostCreate, threadID int) error {
+	for _, post := range posts {
+		if err := u.checkPostCreate(post, threadID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (u *Usecase) checkPostCreate(post forumModel.PostCreate, threadID int) error {
+	if _, err := u.userRepo.GetUserByNickname(post.Author); err != nil {
+		return err
+	}
+	if post.Parent != 0 {
+		parent, err := u.forumRepo.GetPostByID(post.Parent)
+		if err == consts.ErrNotFound {
+			return fmt.Errorf("%w: post parent do not exists", consts.ErrConflict)
+		}
+		if err != nil {
+			return err
+		}
+		if parent.Thread != threadID {
+			return fmt.Errorf("%w: parent post was created in another thread", consts.ErrConflict)
+		}
+	}
+	return nil
 }
 
 func (u *Usecase) getForum(slug string) (*model.Forum, error) {

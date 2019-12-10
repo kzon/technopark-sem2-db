@@ -207,17 +207,10 @@ func (r *Repository) filterPostsTree(tree model.Posts, minParent int, params pag
 	return filtered
 }
 
-func (r *Repository) CreatePosts(threadSlugOrID string, posts []forumModel.PostCreate) (model.Posts, error) {
-	t, err := r.GetThreadBySlugOrID(threadSlugOrID)
-	if err != nil {
-		return nil, err
-	}
+func (r *Repository) CreatePosts(posts []forumModel.PostCreate, t *model.Thread) (model.Posts, error) {
 	f, err := r.GetForumBySlug(t.Forum)
 	if err != nil {
 		return nil, err
-	}
-	if !r.postsParentsExists(posts) {
-		return nil, fmt.Errorf("%w: post parent do not exists", consts.ErrConflict)
 	}
 	now := time.Now()
 	result := make(model.Posts, 0, len(posts))
@@ -261,18 +254,6 @@ func (r *Repository) createPostInTx(forum *model.Forum, thread *model.Thread, po
 	}
 	err = tx.Commit()
 	return
-}
-
-func (r *Repository) postsParentsExists(posts []forumModel.PostCreate) bool {
-	for _, post := range posts {
-		if post.Parent == 0 {
-			continue
-		}
-		if _, err := r.GetPostByID(post.Parent); err != nil {
-			return false
-		}
-	}
-	return true
 }
 
 func (r *Repository) UpdatePost(id int, message string) (*model.Post, error) {

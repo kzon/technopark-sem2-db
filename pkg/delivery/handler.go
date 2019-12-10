@@ -23,6 +23,9 @@ func Error(c echo.Context, err error) error {
 	if errors.Is(err, consts.ErrNotFound) {
 		return notFound(c, err)
 	}
+	if errors.Is(err, consts.ErrConflict) {
+		return ConflictWithMessage(c, err)
+	}
 	if err != nil {
 		return internalError(c, err)
 	}

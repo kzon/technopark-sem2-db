@@ -9,6 +9,7 @@ create table "user"
     "about"    text   not null default ''
 );
 
+
 create table "forum"
 (
     "id"      serial primary key,
@@ -18,6 +19,7 @@ create table "forum"
     "posts"   int default 0 not null,
     "threads" int default 0 not null
 );
+
 
 create table "thread"
 (
@@ -33,6 +35,7 @@ create table "thread"
 
 create index on "thread" ("slug");
 
+
 create table "post"
 (
     "id"       serial primary key,
@@ -45,6 +48,7 @@ create table "post"
     "created"  timestamptz        not null
 );
 
+
 create table "vote"
 (
     "id"       serial primary key,
@@ -52,3 +56,5 @@ create table "vote"
     "nickname" citext not null,
     "voice"    int    not null
 );
+
+create index on "vote" ("thread", "nickname");

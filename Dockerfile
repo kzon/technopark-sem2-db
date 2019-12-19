@@ -20,14 +20,14 @@ RUN /etc/init.d/postgresql start &&\
     /etc/init.d/postgresql stop
 ENV POSTGRES_DSN=postgres://subd:subd@localhost/subd
 
-# Adjust PostgreSQL configuration so that remote connections to the
-# database are possible.
-RUN echo "host all  all    0.0.0.0/0  md5" >> /etc/postgresql/$PGVER/main/pg_hba.conf
-RUN echo "listen_addresses='*'" >> /etc/postgresql/$PGVER/main/postgresql.conf
-
-EXPOSE 5432
+RUN echo "host all all 0.0.0.0/0 md5" >> /etc/postgresql/$PGVER/main/pg_hba.conf
+RUN echo "include_dir='conf.d'" >> /etc/postgresql/$PGVER/main/postgresql.conf
+ADD ./postgresql.conf /etc/postgresql/$PGVER/main/conf.d/basic.conf
 
 VOLUME ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
+
+EXPOSE 5432
+EXPOSE 5000
 
 USER root
 

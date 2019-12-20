@@ -15,16 +15,20 @@ func NewRepository(db *sqlx.DB) Repository {
 }
 
 func (r *Repository) GetForumByID(id int) (*model.Forum, error) {
-	return r.getForum("id=$1", id)
+	return r.getForum("*", "id=$1", id)
 }
 
 func (r *Repository) GetForumBySlug(slug string) (*model.Forum, error) {
-	return r.getForum("slug=$1", slug)
+	return r.getForum("*", "slug=$1", slug)
 }
 
-func (r *Repository) getForum(filter string, params ...interface{}) (*model.Forum, error) {
+func (r *Repository) GetForumSlug(slug string) (*model.Forum, error) {
+	return r.getForum("slug", "slug=$1", slug)
+}
+
+func (r *Repository) getForum(fields, filter string, params ...interface{}) (*model.Forum, error) {
 	f := model.Forum{}
-	err := r.db.Get(&f, `select * from forum where `+filter, params...)
+	err := r.db.Get(&f, `select `+fields+` from forum where `+filter, params...)
 	if err != nil {
 		return nil, repository.Error(err)
 	}

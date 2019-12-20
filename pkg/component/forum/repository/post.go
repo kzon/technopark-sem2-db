@@ -207,15 +207,15 @@ func (r *Repository) filterPostsTree(tree model.Posts, minParent int, params pag
 	return filtered
 }
 
-func (r *Repository) CreatePosts(posts []forumModel.PostCreate, t *model.Thread) (model.Posts, error) {
-	f, err := r.GetForumBySlug(t.Forum)
+func (r *Repository) CreatePosts(posts []forumModel.PostCreate, thread *model.Thread) (model.Posts, error) {
+	forum, err := r.GetForumSlug(thread.Forum)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
 	result := make(model.Posts, 0, len(posts))
-	for _, p := range posts {
-		created, err := r.createPost(f, t, p, now)
+	for _, post := range posts {
+		created, err := r.createPost(forum, thread, post, now)
 		if err != nil {
 			return nil, err
 		}

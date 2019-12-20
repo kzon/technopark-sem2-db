@@ -20,7 +20,7 @@ func NewUsecase(forumRepo repository.Repository, userRepo userComponent.Reposito
 }
 
 func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error) {
-	user, err := u.userRepo.GetUserByNickname(nickname)
+	user, err := u.userRepo.GetUserNickname(nickname)
 	if err != nil {
 		return nil, err
 	}
@@ -37,10 +37,10 @@ func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error
 }
 
 func (u *Usecase) createThread(forumSlug string, thread forumModel.ThreadCreate) (*model.Thread, error) {
-	if _, err := u.userRepo.GetUserByNickname(thread.Author); err != nil {
+	if _, err := u.userRepo.GetUserNickname(thread.Author); err != nil {
 		return nil, err
 	}
-	forum, err := u.repo.GetForumBySlug(forumSlug)
+	forum, err := u.repo.GetForumSlug(forumSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (u *Usecase) updateThread(threadSlugOrID string, message, title string) (*m
 }
 
 func (u *Usecase) createPosts(threadSlugOrID string, posts []forumModel.PostCreate) (model.Posts, error) {
-	thread, err := u.repo.GetThreadBySlugOrID(threadSlugOrID)
+	thread, err := u.repo.GetThreadFieldsBySlugOrID("id, forum", threadSlugOrID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (u *Usecase) checkPostsCreate(posts []forumModel.PostCreate, threadID int) 
 }
 
 func (u *Usecase) checkPostCreate(post forumModel.PostCreate, threadID int) error {
-	if _, err := u.userRepo.GetUserByNickname(post.Author); err != nil {
+	if _, err := u.userRepo.GetUserNickname(post.Author); err != nil {
 		return err
 	}
 	if post.Parent != 0 {
@@ -110,7 +110,7 @@ func (u *Usecase) getForum(slug string) (*model.Forum, error) {
 }
 
 func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) (model.Threads, error) {
-	if _, err := u.repo.GetForumBySlug(forum); err != nil {
+	if _, err := u.repo.GetForumSlug(forum); err != nil {
 		return nil, err
 	}
 	var threads model.Threads
@@ -135,7 +135,7 @@ func (u *Usecase) voteForThread(threadSlugOrID string, vote forumModel.Vote) (th
 	if err != nil {
 		return
 	}
-	user, err := u.userRepo.GetUserByNickname(vote.Nickname)
+	user, err := u.userRepo.GetUserNickname(vote.Nickname)
 	if err != nil {
 		return
 	}
@@ -149,7 +149,7 @@ func (u *Usecase) getThread(threadSlugOrID string) (*model.Thread, error) {
 }
 
 func (u *Usecase) getThreadPosts(threadSlugOrID string, limit int, since *int, sort string, desc bool) (model.Posts, error) {
-	thread, err := u.repo.GetThreadBySlugOrID(threadSlugOrID)
+	thread, err := u.repo.GetThreadFieldsBySlugOrID("id", threadSlugOrID)
 	if err != nil {
 		return nil, err
 	}

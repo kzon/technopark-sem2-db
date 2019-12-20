@@ -35,6 +35,15 @@ func (r *Repository) GetUserByNickname(nickname string) (*model.User, error) {
 	return &user, nil
 }
 
+func (r *Repository) GetUserNickname(nickname string) (*model.User, error) {
+	user := model.User{}
+	err := r.db.Get(&user, `select nickname from "user" where nickname = $1`, nickname)
+	if err != nil {
+		return nil, repository.Error(err)
+	}
+	return &user, nil
+}
+
 func (r *Repository) getUserByEmail(email string) (*model.User, error) {
 	user := model.User{}
 	err := r.db.Get(&user, `select * from "user" where email = $1`, email)

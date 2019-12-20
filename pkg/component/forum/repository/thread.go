@@ -33,7 +33,7 @@ func (r *Repository) GetForumThreadsSince(forum, since string, limit int, desc b
 }
 
 func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool) (model.Users, error) {
-	forum, err := r.GetForumBySlug(forumSlug)
+	forum, err := r.GetForumSlug(forumSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -66,24 +66,28 @@ func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool
 }
 
 func (r *Repository) GetThreadByID(id int) (*model.Thread, error) {
-	return r.getThread("id=$1", id)
+	return r.getThread("*", "id=$1", id)
 }
 
 func (r *Repository) GetThreadBySlug(slug string) (*model.Thread, error) {
-	return r.getThread("slug=$1", slug)
+	return r.getThread("*", "slug=$1", slug)
 }
 
 func (r *Repository) GetThreadBySlugOrID(slugOrID string) (*model.Thread, error) {
-	id, err := strconv.Atoi(slugOrID)
-	if err != nil {
-		return r.getThread("slug=$1", slugOrID)
-	}
-	return r.getThread("id=$1", id)
+	return r.GetThreadFieldsBySlugOrID("*", slugOrID)
 }
 
-func (r *Repository) getThread(filter string, params ...interface{}) (*model.Thread, error) {
+func (r *Repository) GetThreadFieldsBySlugOrID(fields, slugOrID string) (*model.Thread, error) {
+	id, err := strconv.Atoi(slugOrID)
+	if err != nil {
+		return r.getThread(fields, "slug=$1", slugOrID)
+	}
+	return r.getThread(fields, "id=$1", id)
+}
+
+func (r *Repository) getThread(fields, filter string, params ...interface{}) (*model.Thread, error) {
 	t := model.Thread{}
-	err := r.db.Get(&t, "select * from thread where "+filter, params...)
+	err := r.db.Get(&t, "select "+fields+" from thread where "+filter, params...)
 	if err != nil {
 		return nil, repository.Error(err)
 	}

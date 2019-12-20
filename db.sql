@@ -37,6 +37,7 @@ create table "post"
 (
     "id"       serial primary key,
     "parent"   int                not null,
+    "path"     text               not null,
     "author"   citext             not null,
     "forum"    citext             not null,
     "thread"   int                not null,
@@ -45,6 +46,7 @@ create table "post"
     "created"  timestamptz        not null
 );
 create index on "post" ("thread");
+create index on "post" ("created");
 
 
 create table "vote"

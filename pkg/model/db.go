@@ -32,6 +32,7 @@ type (
 	Post struct {
 		ID       int    `db:"id" json:"id"`
 		Parent   int    `db:"parent" json:"parent"`
+		Path     string `db:"path" json:"path"`
 		Author   string `db:"author" json:"author"`
 		Forum    string `db:"forum" json:"forum"`
 		Thread   int    `db:"thread" json:"thread"`

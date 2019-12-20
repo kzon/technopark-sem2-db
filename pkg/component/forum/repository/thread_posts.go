@@ -10,7 +10,9 @@ func (r *Repository) GetThreadPosts(thread, limit int, since *int, sort string, 
 	switch sort {
 	case SortFlat, "":
 		return r.getThreadPostsFlat(thread, limit, since, desc)
-	case SortTree, SortParentTree:
+	case SortTree:
+		return r.getThreadPostsTree(thread, limit, since, desc)
+	case SortParentTree:
 		params := pageParams{
 			limit: limit,
 			since: since,
@@ -41,6 +43,24 @@ func (r *Repository) getThreadPostsFlat(thread, limit int, since *int, desc bool
 	return r.getPosts(orderBy, limit, filter, params...)
 }
 
-//func (r *Repository) getThreadPostsTree(thread, limit int, since *int, desc bool) (model.Posts, error) {
-//
-//}
+func (r *Repository) getThreadPostsTree(thread, limit int, since *int, desc bool) (model.Posts, error) {
+	order := "asc"
+	if desc {
+		order = "desc"
+	}
+	orderBy := []string{"path " + order, "created " + order, "id " + order}
+	filter := "thread = $1"
+	params := []interface{}{thread}
+	if since != nil {
+		var operator = ">"
+		if desc {
+			operator = "<"
+		}
+		sincePost, err := r.getPostFields("path", "id=$1", *since)
+		if err != nil {
+			return nil, err
+		}
+		filter += fmt.Sprintf(" and path %s '%s'", operator, sincePost.Path)
+	}
+	return r.getPosts(orderBy, limit, filter, params...)
+}

@@ -15,8 +15,12 @@ const (
 	SortTree       = "tree"
 	SortParentTree = "parent_tree"
 
-	pathDelim = "."
+	pathDelim    = "."
+	maxIDLength  = 7
+	maxTreeLevel = 7
 )
+
+var zeroPathStud = strings.Repeat("0", maxIDLength)
 
 type pageParams struct {
 	limit int
@@ -78,20 +82,26 @@ func (r *Repository) createPost(forum *model.Forum, thread *model.Thread, post f
 }
 
 func (r *Repository) createPostInTx(forum *model.Forum, thread *model.Thread, post forumModel.PostCreate, created time.Time) (id int, err error) {
-	path, err := r.getPostPath(post)
-	if err != nil {
-		return
-	}
 	tx, err := r.db.Begin()
 	if err != nil {
 		return
 	}
 	err = tx.
 		QueryRow(
-			`insert into post (thread, forum, parent, path, author, message, created) values ($1, $2, $3, $4, $5, $6, $7) returning id`,
-			thread.ID, thread.Forum, post.Parent, path, post.Author, post.Message, created,
+			`insert into post (thread, forum, parent, author, message, created) values ($1, $2, $3, $4, $5, $6) returning id`,
+			thread.ID, thread.Forum, post.Parent, post.Author, post.Message, created,
 		).
 		Scan(&id)
+	if err != nil {
+		tx.Rollback()
+		return
+	}
+	path, err := r.getPostPath(id, post.Parent)
+	if err != nil {
+		tx.Rollback()
+		return
+	}
+	_, err = tx.Exec(`update post set "path" = $1 where id = $2`, path, id)
 	if err != nil {
 		tx.Rollback()
 		return
@@ -105,6 +115,29 @@ func (r *Repository) createPostInTx(forum *model.Forum, thread *model.Thread, po
 	return
 }
 
+func (r *Repository) getPostPath(id, parentID int) (string, error) {
+	var base string
+	if parentID == 0 {
+		base = r.getZeroPostPath()
+	} else {
+		parent, err := r.getPostFields("path", "id=$1", parentID)
+		if err != nil {
+			return "", err
+		}
+		base = parent.Path
+	}
+	path := strings.Replace(base, zeroPathStud, strconv.Itoa(id), 1)
+	return path, nil
+}
+
+func (r *Repository) getZeroPostPath() string {
+	path := zeroPathStud
+	for i := 0; i < maxTreeLevel-1; i++ {
+		path += pathDelim + zeroPathStud
+	}
+	return path
+}
+
 func (r *Repository) UpdatePost(id int, message string) (*model.Post, error) {
 	if message != "" {
 		_, err := r.db.Exec(
@@ -116,18 +149,4 @@ func (r *Repository) UpdatePost(id int, message string) (*model.Post, error) {
 		}
 	}
 	return r.GetPostByID(id)
-}
-
-func (r *Repository) getPostPath(post forumModel.PostCreate) (string, error) {
-	if post.Parent == 0 {
-		return "", nil
-	}
-	parent, err := r.getPostFields("path", "id=$1", post.Parent)
-	if err != nil {
-		return "", err
-	}
-	if parent.Path == "" {
-		return strconv.Itoa(post.Parent), nil
-	}
-	return parent.Path + pathDelim + strconv.Itoa(post.Parent), nil
 }

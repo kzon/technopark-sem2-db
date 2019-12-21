@@ -22,13 +22,6 @@ const (
 
 var zeroPathStud = strings.Repeat("0", maxIDLength)
 
-type pageParams struct {
-	limit int
-	since *int
-	sort  string
-	desc  bool
-}
-
 func (r *Repository) GetPostByID(id int) (*model.Post, error) {
 	return r.getPost("id=$1", id)
 }

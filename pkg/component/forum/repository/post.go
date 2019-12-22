@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	forumModel "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
@@ -39,6 +40,17 @@ func (r *Repository) getPostFields(fields, filter string, params ...interface{})
 	return &p, nil
 }
 
+func (r *Repository) getPostsByIDs(ids []int) (model.Posts, error) {
+	posts := make(model.Posts, 0)
+	query, args, err := sqlx.In(`select * from post where id in (?)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	query = r.db.Rebind(query)
+	err = r.db.Select(&posts, query, args...)
+	return posts, err
+}
+
 func (r *Repository) getPosts(orderBy []string, limit int, filter string, params ...interface{}) (model.Posts, error) {
 	query := fmt.Sprintf(`select * from post where %s order by %s`, filter, strings.Join(orderBy, ","))
 	if limit > 0 {
@@ -49,63 +61,83 @@ func (r *Repository) getPosts(orderBy []string, limit int, filter string, params
 	return posts, err
 }
 
-func (r *Repository) CreatePosts(posts []forumModel.PostCreate, thread *model.Thread) (model.Posts, error) {
+func (r *Repository) CreatePosts(posts []*forumModel.PostCreate, thread *model.Thread) (model.Posts, error) {
 	forum, err := r.GetForumSlug(thread.Forum)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
 	result := make(model.Posts, 0, len(posts))
-	for _, post := range posts {
-		created, err := r.createPost(forum, thread, post, now)
+	for _, chunk := range r.chunkPosts(posts) {
+		created, err := r.createPostsChunk(forum, thread, chunk, now)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, created)
+		result = append(result, created...)
 	}
 	return result, nil
 }
 
-func (r *Repository) createPost(forum *model.Forum, thread *model.Thread, post forumModel.PostCreate, created time.Time) (*model.Post, error) {
-	id, err := r.createPostInTx(forum, thread, post, created)
+func (r *Repository) chunkPosts(posts []*forumModel.PostCreate) [][]*forumModel.PostCreate {
+	chunked := make([][]*forumModel.PostCreate, 0)
+	chunkSize := 200
+	for i := 0; i < len(posts); i += chunkSize {
+		end := i + chunkSize
+		if end > len(posts) {
+			end = len(posts)
+		}
+		chunked = append(chunked, posts[i:end])
+	}
+	return chunked
+}
+
+func (r *Repository) createPostsChunk(forum *model.Forum, thread *model.Thread, posts []*forumModel.PostCreate, created time.Time) (model.Posts, error) {
+	tx, err := r.db.Beginx()
 	if err != nil {
 		return nil, err
 	}
-	return r.GetPostByID(id)
-}
-
-func (r *Repository) createPostInTx(forum *model.Forum, thread *model.Thread, post forumModel.PostCreate, created time.Time) (id int, err error) {
-	tx, err := r.db.Begin()
-	if err != nil {
-		return
-	}
-	err = tx.
-		QueryRow(
-			`insert into post (thread, forum, parent, author, message, created) values ($1, $2, $3, $4, $5, $6) returning id`,
-			thread.ID, thread.Forum, post.Parent, post.Author, post.Message, created,
-		).
-		Scan(&id)
+	insertedIds, err := r.bulkCreatePosts(tx, forum, thread, posts, created)
 	if err != nil {
 		tx.Rollback()
-		return
+		return nil, err
 	}
-	path, err := r.getPostPath(id, post.Parent)
+	err = r.incForumPostsCount(tx, forum.Slug, len(posts))
 	if err != nil {
 		tx.Rollback()
-		return
-	}
-	_, err = tx.Exec(`update post set "path" = $1 where id = $2`, path, id)
-	if err != nil {
-		tx.Rollback()
-		return
-	}
-	_, err = tx.Exec(`update forum set posts = posts + 1 where slug = $1`, forum.Slug)
-	if err != nil {
-		tx.Rollback()
-		return
+		return nil, err
 	}
 	err = tx.Commit()
-	return
+	if err != nil {
+		return nil, err
+	}
+	return r.getPostsByIDs(insertedIds)
+}
+
+func (r *Repository) bulkCreatePosts(tx *sqlx.Tx, forum *model.Forum, thread *model.Thread, posts []*forumModel.PostCreate, created time.Time) ([]int, error) {
+	columns := 6
+	placeholders := make([]string, 0, len(posts))
+	args := make([]interface{}, 0, len(posts)*columns)
+	i := 0
+	for _, post := range posts {
+		placeholders = append(placeholders, fmt.Sprintf(
+			"($%d, $%d, $%d, $%d, $%d, $%d)",
+			i*columns+1, i*columns+2, i*columns+3, i*columns+4, i*columns+5, i*columns+6,
+		))
+		args = append(args, []interface{}{thread.ID, thread.Forum, post.Parent, post.Author, post.Message, created}...)
+		i++
+	}
+	query := fmt.Sprintf(
+		"insert into post (thread, forum, parent, author, message, created) values %s returning id",
+		strings.Join(placeholders, ","),
+	)
+	ids := make([]int, 0)
+	err := tx.Select(&ids, query, args...)
+	return ids, err
+}
+
+func (r *Repository) incForumPostsCount(tx *sqlx.Tx, forum string, newCount int) error {
+	_, err := tx.Exec(`update forum set posts = posts + $1 where slug = $2`, newCount, forum)
+	return err
 }
 
 func (r *Repository) getPostPath(id, parentID int) (string, error) {

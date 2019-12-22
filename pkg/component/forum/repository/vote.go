@@ -5,15 +5,6 @@ import (
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 )
 
-func (r *Repository) GetVoice(nickname string, threadID int) (int, error) {
-	var voice int
-	err := r.db.Get(&voice, `select voice from vote where nickname = $1 and thread = $2`, nickname, threadID)
-	if err == sql.ErrNoRows {
-		return 0, nil
-	}
-	return voice, err
-}
-
 func (r *Repository) AddThreadVote(thread *model.Thread, nickname string, voice int) (newVotes int, err error) {
 	oldVoice, err := r.GetVoice(nickname, thread.ID)
 	if err != nil {
@@ -23,13 +14,11 @@ func (r *Repository) AddThreadVote(thread *model.Thread, nickname string, voice 
 		return thread.Votes, nil
 	}
 	newVoice := voice - oldVoice
-	tx, err := r.db.Begin()
+	tx, err := r.db.Beginx()
 	if err != nil {
 		return
 	}
-	err = tx.
-		QueryRow(`update thread set votes = votes + $1 where id = $2 returning votes`, newVoice, thread.ID).
-		Scan(&newVotes)
+	err = tx.Get(&newVotes, `update thread set votes = votes + $1 where id = $2 returning votes`, newVoice, thread.ID)
 	if err != nil {
 		tx.Rollback()
 		return
@@ -44,4 +33,13 @@ func (r *Repository) AddThreadVote(thread *model.Thread, nickname string, voice 
 	}
 	err = tx.Commit()
 	return
+}
+
+func (r *Repository) GetVoice(nickname string, threadID int) (int, error) {
+	var voice int
+	err := r.db.Get(&voice, `select voice from vote where nickname = $1 and thread = $2`, nickname, threadID)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return voice, err
 }

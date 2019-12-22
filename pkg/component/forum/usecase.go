@@ -66,7 +66,7 @@ func (u *Usecase) updateThread(threadSlugOrID string, message, title string) (*m
 	return u.repo.UpdateThread(threadSlugOrID, message, title)
 }
 
-func (u *Usecase) createPosts(threadSlugOrID string, posts []forumModel.PostCreate) (model.Posts, error) {
+func (u *Usecase) createPosts(threadSlugOrID string, posts []*forumModel.PostCreate) (model.Posts, error) {
 	thread, err := u.repo.GetThreadFieldsBySlugOrID("id, forum", threadSlugOrID)
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func (u *Usecase) createPosts(threadSlugOrID string, posts []forumModel.PostCrea
 	return u.repo.CreatePosts(posts, thread)
 }
 
-func (u *Usecase) checkPostsCreate(posts []forumModel.PostCreate, threadID int) error {
+func (u *Usecase) checkPostsCreate(posts []*forumModel.PostCreate, threadID int) error {
 	for _, post := range posts {
 		if err := u.checkPostCreate(post, threadID); err != nil {
 			return err
@@ -86,7 +86,7 @@ func (u *Usecase) checkPostsCreate(posts []forumModel.PostCreate, threadID int) 
 	return nil
 }
 
-func (u *Usecase) checkPostCreate(post forumModel.PostCreate, threadID int) error {
+func (u *Usecase) checkPostCreate(post *forumModel.PostCreate, threadID int) error {
 	if _, err := u.userRepo.GetUserNickname(post.Author); err != nil {
 		return err
 	}
@@ -130,18 +130,18 @@ func (u *Usecase) getForumUsers(forum, since string, limit int, desc bool) (mode
 	return u.repo.GetForumUsers(forum, since, limit, desc)
 }
 
-func (u *Usecase) voteForThread(threadSlugOrID string, vote forumModel.Vote) (thread *model.Thread, err error) {
-	thread, err = u.repo.GetThreadBySlugOrID(threadSlugOrID)
+func (u *Usecase) voteForThread(threadSlugOrID string, vote forumModel.Vote) (*model.Thread, error) {
+	thread, err := u.repo.GetThreadBySlugOrID(threadSlugOrID)
 	if err != nil {
-		return
+		return nil, err
 	}
 	user, err := u.userRepo.GetUserNickname(vote.Nickname)
 	if err != nil {
-		return
+		return nil, err
 	}
 	newVotes, err := u.repo.AddThreadVote(thread, user.Nickname, vote.Voice)
 	thread.Votes = newVotes
-	return
+	return thread, err
 }
 
 func (u *Usecase) getThread(threadSlugOrID string) (*model.Thread, error) {

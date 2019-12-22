@@ -95,7 +95,7 @@ func (h *Handler) handleGetForumUsers(c echo.Context) error {
 }
 
 func (h *Handler) handlePostCreate(c echo.Context) error {
-	var posts []forumModel.PostCreate
+	var posts []*forumModel.PostCreate
 	if err := c.Bind(&posts); err != nil {
 		return delivery.BadRequest(c, err)
 	}

@@ -47,9 +47,7 @@ create table "post"
     "created"  timestamptz not null
 );
 create index on "post" ("thread");
-create index on "post" ("parent");
 create index on "post" ("path");
-create index on "post" ("created");
 create index on "post" ("forum", "author");
 
 

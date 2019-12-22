@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"github.com/jmoiron/sqlx"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
@@ -44,6 +45,39 @@ func (r *Repository) CreateForum(title, slug, user string) (*model.Forum, error)
 		return nil, err
 	}
 	return r.GetForumByID(id)
+}
+
+func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool) (model.Users, error) {
+	forum, err := r.GetForumSlug(forumSlug)
+	if err != nil {
+		return nil, err
+	}
+	sinceFilter := ""
+	if since != "" {
+		if desc {
+			sinceFilter = "and nickname < $2"
+		} else {
+			sinceFilter = "and nickname > $2"
+		}
+	}
+	limitExpr := ""
+	if limit > 0 {
+		limitExpr = fmt.Sprintf("limit %d", limit)
+	}
+	query := fmt.Sprintf(
+		`select * from "user" where (
+				exists(select id from post where author = nickname and forum = $1) or
+				exists(select id from thread where author = nickname and forum = $1)
+			) %s order by nickname %s %s`,
+		sinceFilter, r.getOrder(desc), limitExpr,
+	)
+	users := make(model.Users, 0)
+	if since == "" {
+		err = r.db.Select(&users, query, forum.Slug)
+	} else {
+		err = r.db.Select(&users, query, forum.Slug, since)
+	}
+	return users, err
 }
 
 func (r *Repository) getOrder(desc bool) string {

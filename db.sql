@@ -31,6 +31,7 @@ create table "thread"
     "created" timestamptz   not null
 );
 create index on "thread" ("slug");
+create index on "thread" ("forum", "author");
 
 
 create table "post"
@@ -49,6 +50,7 @@ create index on "post" ("thread");
 create index on "post" ("parent");
 create index on "post" ("path");
 create index on "post" ("created");
+create index on "post" ("forum", "author");
 
 
 create table "vote"

@@ -32,40 +32,6 @@ func (r *Repository) GetForumThreadsSince(forum, since string, limit int, desc b
 	return threads, err
 }
 
-func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool) (model.Users, error) {
-	forum, err := r.GetForumSlug(forumSlug)
-	if err != nil {
-		return nil, err
-	}
-	sinceFilter := ""
-	if since != "" {
-		if desc {
-			sinceFilter = "and nickname < $2"
-		} else {
-			sinceFilter = "and nickname > $2"
-		}
-	}
-	nicknamesQuery := `
-		select author from post where forum = $1
-		union all 
-		select author from thread where forum = $1`
-	limitExpr := ""
-	if limit > 0 {
-		limitExpr = fmt.Sprintf("limit %d", limit)
-	}
-	query := fmt.Sprintf(
-		`select * from "user" where nickname in (%s) %s order by nickname %s %s`,
-		nicknamesQuery, sinceFilter, r.getOrder(desc), limitExpr,
-	)
-	users := make(model.Users, 0)
-	if since == "" {
-		err = r.db.Select(&users, query, forum.Slug)
-	} else {
-		err = r.db.Select(&users, query, forum.Slug, since)
-	}
-	return users, err
-}
-
 func (r *Repository) GetThreadByID(id int) (*model.Thread, error) {
 	return r.getThread("*", "id=$1", id)
 }

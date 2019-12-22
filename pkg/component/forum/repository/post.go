@@ -18,7 +18,7 @@ const (
 
 	pathDelim    = "."
 	maxIDLength  = 7
-	maxTreeLevel = 7
+	maxTreeLevel = 4
 )
 
 var zeroPathStud = strings.Repeat("0", maxIDLength)
@@ -42,7 +42,7 @@ func (r *Repository) getPostFields(fields, filter string, params ...interface{})
 
 func (r *Repository) getPostsByIDs(ids []int) (model.Posts, error) {
 	posts := make(model.Posts, 0)
-	query, args, err := sqlx.In(`select * from post where id in (?)`, ids)
+	query, args, err := sqlx.In(`select * from post where id in (?) order by id`, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (r *Repository) CreatePosts(posts []*forumModel.PostCreate, thread *model.T
 	now := time.Now()
 	result := make(model.Posts, 0, len(posts))
 	for _, chunk := range r.chunkPosts(posts) {
-		created, err := r.createPostsChunk(forum, thread, chunk, now)
+		created, err := r.createPostsInTx(forum, thread, chunk, now)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func (r *Repository) chunkPosts(posts []*forumModel.PostCreate) [][]*forumModel.
 	return chunked
 }
 
-func (r *Repository) createPostsChunk(forum *model.Forum, thread *model.Thread, posts []*forumModel.PostCreate, created time.Time) (model.Posts, error) {
+func (r *Repository) createPostsInTx(forum *model.Forum, thread *model.Thread, posts []*forumModel.PostCreate, created time.Time) (model.Posts, error) {
 	tx, err := r.db.Beginx()
 	if err != nil {
 		return nil, err
@@ -102,6 +102,11 @@ func (r *Repository) createPostsChunk(forum *model.Forum, thread *model.Thread, 
 		return nil, err
 	}
 	err = r.incForumPostsCount(tx, forum.Slug, len(posts))
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	err = r.fillPostsPath(tx, insertedIds, posts)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -140,6 +145,21 @@ func (r *Repository) incForumPostsCount(tx *sqlx.Tx, forum string, newCount int)
 	return err
 }
 
+func (r *Repository) fillPostsPath(tx *sqlx.Tx, ids []int, posts []*forumModel.PostCreate) error {
+	for i, id := range ids {
+		post := posts[i]
+		path, err := r.getPostPath(id, post.Parent)
+		if err != nil {
+			return err
+		}
+		err = r.updatePostPath(tx, id, path)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Repository) getPostPath(id, parentID int) (string, error) {
 	var base string
 	if parentID == 0 {
@@ -163,7 +183,7 @@ func (r *Repository) getZeroPostPath() string {
 	return path
 }
 
-func (r *Repository) UpdatePost(id int, message string) (*model.Post, error) {
+func (r *Repository) UpdatePostMessage(id int, message string) (*model.Post, error) {
 	if message != "" {
 		_, err := r.db.Exec(
 			`update post set "message" = $1, "isEdited" = true where id = $2 and "message" <> $1`,
@@ -174,4 +194,9 @@ func (r *Repository) UpdatePost(id int, message string) (*model.Post, error) {
 		}
 	}
 	return r.GetPostByID(id)
+}
+
+func (r *Repository) updatePostPath(tx *sqlx.Tx, id int, path string) error {
+	_, err := tx.Exec(`update post set path = $1 where id = $2`, path, id)
+	return err
 }

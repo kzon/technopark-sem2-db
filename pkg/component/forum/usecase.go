@@ -186,5 +186,5 @@ func (u *Usecase) getPostDetails(id int, related []string) (*postDetails, error)
 }
 
 func (u *Usecase) updatePost(id int, message string) (*model.Post, error) {
-	return u.repo.UpdatePost(id, message)
+	return u.repo.UpdatePostMessage(id, message)
 }

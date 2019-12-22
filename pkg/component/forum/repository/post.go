@@ -18,7 +18,7 @@ const (
 
 	pathDelim    = "."
 	maxIDLength  = 7
-	maxTreeLevel = 4
+	maxTreeLevel = 5
 )
 
 var zeroPathStud = strings.Repeat("0", maxIDLength)
@@ -171,7 +171,7 @@ func (r *Repository) getPostPath(id, parentID int) (string, error) {
 		}
 		base = parent.Path
 	}
-	path := strings.Replace(base, zeroPathStud, strconv.Itoa(id), 1)
+	path := strings.Replace(base, zeroPathStud, r.padPostID(id), 1)
 	return path, nil
 }
 
@@ -181,6 +181,10 @@ func (r *Repository) getZeroPostPath() string {
 		path += pathDelim + zeroPathStud
 	}
 	return path
+}
+
+func (r *Repository) padPostID(id int) string {
+	return fmt.Sprintf("%0"+strconv.Itoa(maxIDLength)+"d", id)
 }
 
 func (r *Repository) UpdatePostMessage(id int, message string) (*model.Post, error) {

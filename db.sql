@@ -36,16 +36,17 @@ create index on "thread" ("slug");
 create table "post"
 (
     "id"       serial primary key,
-    "parent"   int                not null,
-    "path"     text               not null,
-    "author"   citext             not null,
-    "forum"    citext             not null,
-    "thread"   int                not null,
-    "message"  text               not null,
-    "isEdited" bool default false not null,
-    "created"  timestamptz        not null
+    "parent"   int         not null,
+    "path"     text        not null default '',
+    "author"   citext      not null,
+    "forum"    citext      not null,
+    "thread"   int         not null,
+    "message"  text        not null,
+    "isEdited" bool        not null default false,
+    "created"  timestamptz not null
 );
 create index on "post" ("thread");
+create index on "post" ("parent");
 create index on "post" ("path");
 create index on "post" ("created");
 

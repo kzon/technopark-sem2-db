@@ -46,8 +46,9 @@ func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool
 		}
 	}
 	nicknamesQuery := `
-		select distinct post.author from post where forum = $1
-		union select thread.author from thread where forum = $1`
+		select author from post where forum = $1
+		union all 
+		select author from thread where forum = $1`
 	limitExpr := ""
 	if limit > 0 {
 		limitExpr = fmt.Sprintf("limit %d", limit)

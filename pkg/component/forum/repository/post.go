@@ -86,6 +86,7 @@ func (r *Repository) CreatePosts(posts []*forumModel.PostCreate, thread *model.T
 		}
 		result = append(result, created...)
 	}
+	err = r.clearPostPathsBuffer()
 	return result, nil
 }
 
@@ -155,7 +156,7 @@ func (r *Repository) fillPostsPath(tx *sqlx.Tx, ids []int, posts []*forumModel.P
 		}
 		paths = append(paths, postPath{ID: id, Path: path})
 	}
-	return r.updatePostsPath(tx, paths)
+	return r.updatePostPaths(tx, paths)
 }
 
 func (r *Repository) getPostPath(id, parentID int) (string, error) {
@@ -185,10 +186,7 @@ func (r *Repository) padPostID(id int) string {
 	return fmt.Sprintf("%0"+strconv.Itoa(maxIDLength)+"d", id)
 }
 
-func (r *Repository) updatePostsPath(tx *sqlx.Tx, paths []postPath) error {
-	if _, err := tx.Exec(`create temporary table if not exists post_path (id int, path text)`); err != nil {
-		return err
-	}
+func (r *Repository) updatePostPaths(tx *sqlx.Tx, paths []postPath) error {
 	columns := 2
 	placeholders := make([]string, 0, len(paths))
 	args := make([]interface{}, 0, len(paths)*columns)
@@ -204,6 +202,11 @@ func (r *Repository) updatePostsPath(tx *sqlx.Tx, paths []postPath) error {
 		return err
 	}
 	_, err := tx.Exec(`update post set path = post_path.path from post_path where post.id = post_path.id`)
+	return err
+}
+
+func (r *Repository) clearPostPathsBuffer() error {
+	_, err := r.db.Exec(`truncate table post_path`)
 	return err
 }
 

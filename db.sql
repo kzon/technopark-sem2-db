@@ -68,3 +68,10 @@ create table "forum_user"
     "user"  text not null
 );
 create index on "forum_user" ("forum");
+
+
+create table "post_path"
+(
+    "id"   int,
+    "path" text
+);

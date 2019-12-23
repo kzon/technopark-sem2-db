@@ -25,11 +25,6 @@ const (
 
 var zeroPathStud = strings.Repeat("0", maxIDLength)
 
-type postPath struct {
-	ID   int
-	Path string
-}
-
 func (r *Repository) GetPostByID(id int) (*model.Post, error) {
 	return r.getPost("id=$1", id)
 }
@@ -86,7 +81,6 @@ func (r *Repository) CreatePosts(posts []*forumModel.PostCreate, thread *model.T
 		}
 		result = append(result, created...)
 	}
-	err = r.clearPostPathsBuffer()
 	return result, nil
 }
 
@@ -112,11 +106,6 @@ func (r *Repository) createPostsInTx(forum *model.Forum, thread *model.Thread, p
 		tx.Rollback()
 		return nil, err
 	}
-	err = r.fillPostsPath(tx, insertedIds, posts)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
 	err = tx.Commit()
 	if err != nil {
 		return nil, err
@@ -125,38 +114,34 @@ func (r *Repository) createPostsInTx(forum *model.Forum, thread *model.Thread, p
 }
 
 func (r *Repository) bulkCreatePosts(tx *sqlx.Tx, forum *model.Forum, thread *model.Thread, posts []*forumModel.PostCreate, created time.Time) ([]int, error) {
-	columns := 6
+	columns := 8
 	placeholders := make([]string, 0, len(posts))
 	args := make([]interface{}, 0, len(posts)*columns)
 	i := 0
+	createdIDs := make([]int, len(posts))
 	for _, post := range posts {
+		id, err := r.getNextPostID()
+		if err != nil {
+			return nil, err
+		}
+		path, err := r.getPostPath(id, post.Parent)
+		if err != nil {
+			return nil, err
+		}
 		placeholders = append(placeholders, fmt.Sprintf(
-			"($%d, $%d, $%d, $%d, $%d, $%d)",
-			i*columns+1, i*columns+2, i*columns+3, i*columns+4, i*columns+5, i*columns+6,
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			i*columns+1, i*columns+2, i*columns+3, i*columns+4, i*columns+5, i*columns+6, i*columns+7, i*columns+8,
 		))
-		args = append(args, []interface{}{thread.ID, thread.Forum, post.Parent, post.Author, post.Message, created}...)
+		args = append(args, id, thread.ID, thread.Forum, post.Parent, path, post.Author, post.Message, created)
+		createdIDs = append(createdIDs, id)
 		i++
 	}
 	query := fmt.Sprintf(
-		"insert into post (thread, forum, parent, author, message, created) values %s returning id",
+		"insert into post (id, thread, forum, parent, path, author, message, created) values %s",
 		strings.Join(placeholders, ","),
 	)
-	ids := make([]int, 0)
-	err := tx.Select(&ids, query, args...)
-	return ids, err
-}
-
-func (r *Repository) fillPostsPath(tx *sqlx.Tx, ids []int, posts []*forumModel.PostCreate) error {
-	paths := make([]postPath, 0, len(posts))
-	for i, id := range ids {
-		post := posts[i]
-		path, err := r.getPostPath(id, post.Parent)
-		if err != nil {
-			return err
-		}
-		paths = append(paths, postPath{ID: id, Path: path})
-	}
-	return r.updatePostPaths(tx, paths)
+	_, err := tx.Exec(query, args...)
+	return createdIDs, err
 }
 
 func (r *Repository) getPostPath(id, parentID int) (string, error) {
@@ -186,28 +171,10 @@ func (r *Repository) padPostID(id int) string {
 	return fmt.Sprintf("%0"+strconv.Itoa(maxIDLength)+"d", id)
 }
 
-func (r *Repository) updatePostPaths(tx *sqlx.Tx, paths []postPath) error {
-	columns := 2
-	placeholders := make([]string, 0, len(paths))
-	args := make([]interface{}, 0, len(paths)*columns)
-	i := 0
-	for _, p := range paths {
-		placeholders = append(placeholders, fmt.Sprintf("($%d, $%d)", i*columns+1, i*columns+2))
-		args = append(args, p.ID)
-		args = append(args, p.Path)
-		i++
-	}
-	query := "insert into post_path (id, path) values " + strings.Join(placeholders, ",")
-	if _, err := tx.Exec(query, args...); err != nil {
-		return err
-	}
-	_, err := tx.Exec(`update post set path = post_path.path from post_path where post.id = post_path.id`)
-	return err
-}
-
-func (r *Repository) clearPostPathsBuffer() error {
-	_, err := r.db.Exec(`truncate table post_path`)
-	return err
+func (r *Repository) getNextPostID() (int, error) {
+	var id int
+	err := r.db.Get(&id, `select nextval(pg_get_serial_sequence('post', 'id'))`)
+	return id, err
 }
 
 func (r *Repository) UpdatePostMessage(id int, message string) (*model.Post, error) {

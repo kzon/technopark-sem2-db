@@ -31,6 +31,7 @@ create table "thread"
     "created" timestamptz   not null
 );
 create index on "thread" ("slug");
+create index on "thread" ("created");
 create index on "thread" ("forum", "author");
 
 

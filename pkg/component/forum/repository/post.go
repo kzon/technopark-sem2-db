@@ -145,11 +145,6 @@ func (r *Repository) bulkCreatePosts(tx *sqlx.Tx, forum *model.Forum, thread *mo
 	return ids, err
 }
 
-func (r *Repository) incForumPostsCount(tx *sqlx.Tx, forum string, newCount int) error {
-	_, err := tx.Exec(`update forum set posts = posts + $1 where slug = $2`, newCount, forum)
-	return err
-}
-
 func (r *Repository) fillPostsPath(tx *sqlx.Tx, ids []int, posts []*forumModel.PostCreate) error {
 	paths := make([]postPath, 0, len(posts))
 	for i, id := range ids {

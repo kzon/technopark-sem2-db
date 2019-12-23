@@ -48,27 +48,21 @@ func (r *Repository) getThreadPostsTree(thread, limit int, since *int, desc bool
 		}
 		conditions = append(conditions, sinceCond)
 	}
-	orderBy := []string{"path " + r.getOrder(desc)}
+	orderBy := []string{"path" + r.getOrder(desc)}
 	filter := strings.Join(conditions, " and ")
 	return r.getPosts(orderBy, limit, filter, params...)
 }
 
 func (r *Repository) getThreadPostsParentTree(thread, limit int, since *int, desc bool) (model.Posts, error) {
 	conditions := []string{"parent=0", "thread=$1"}
-
 	if since != nil {
-		var operator = ">"
-		if desc {
-			operator = "<"
-		}
 		sincePost, err := r.getPostFields("path", "id=$1", *since)
 		if err != nil {
 			return nil, err
 		}
-		sinceCond := fmt.Sprintf("path %s '%s'", operator, r.getRootPath(sincePost.Path))
+		sinceCond := fmt.Sprintf("path %s '%s'", r.getSinceOperator(desc), r.getRootPath(sincePost.Path))
 		conditions = append(conditions, sinceCond)
 	}
-
 	filter := strings.Join(conditions, " and ")
 	var parents model.Posts
 	err := r.db.Select(&parents, fmt.Sprintf(

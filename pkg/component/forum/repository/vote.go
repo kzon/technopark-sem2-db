@@ -13,12 +13,15 @@ func (r *Repository) AddThreadVote(thread *model.Thread, nickname string, voice 
 	if oldVoice == voice {
 		return thread.Votes, nil
 	}
-	newVoice := voice - oldVoice
 	tx, err := r.db.Beginx()
 	if err != nil {
 		return
 	}
-	err = tx.Get(&newVotes, `update thread set votes = votes + $1 where id = $2 returning votes`, newVoice, thread.ID)
+	err = tx.Get(
+		&newVotes,
+		`update thread set votes = votes + $1 where id = $2 returning votes`,
+		voice-oldVoice, thread.ID,
+	)
 	if err != nil {
 		tx.Rollback()
 		return

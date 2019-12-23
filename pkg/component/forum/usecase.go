@@ -20,7 +20,7 @@ func NewUsecase(forumRepo repository.Repository, userRepo userComponent.Reposito
 }
 
 func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error) {
-	user, err := u.userRepo.GetUserNickname(nickname)
+	userNickname, err := u.userRepo.GetUserNickname(nickname)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error
 		return existingForum, fmt.Errorf("%w: forum with this slug already exists", consts.ErrConflict)
 	}
 
-	return u.repo.CreateForum(title, slug, user.Nickname)
+	return u.repo.CreateForum(title, slug, userNickname)
 }
 
 func (u *Usecase) createThread(forumSlug string, thread forumModel.ThreadCreate) (*model.Thread, error) {
@@ -91,7 +91,7 @@ func (u *Usecase) checkPostCreate(post *forumModel.PostCreate, threadID int) err
 		return err
 	}
 	if post.Parent != 0 {
-		parent, err := u.repo.GetPostByID(post.Parent)
+		parent, err := u.repo.GetPostThreadByID(post.Parent)
 		if err == consts.ErrNotFound {
 			return fmt.Errorf("%w: post parent do not exists", consts.ErrConflict)
 		}
@@ -106,6 +106,9 @@ func (u *Usecase) checkPostCreate(post *forumModel.PostCreate, threadID int) err
 }
 
 func (u *Usecase) getForum(slug string) (*model.Forum, error) {
+	if err := u.repo.FillForumPostsCount(slug); err != nil {
+		return nil, err
+	}
 	return u.repo.GetForumBySlug(slug)
 }
 
@@ -135,11 +138,11 @@ func (u *Usecase) voteForThread(threadSlugOrID string, vote forumModel.Vote) (*m
 	if err != nil {
 		return nil, err
 	}
-	user, err := u.userRepo.GetUserNickname(vote.Nickname)
+	userNickname, err := u.userRepo.GetUserNickname(vote.Nickname)
 	if err != nil {
 		return nil, err
 	}
-	newVotes, err := u.repo.AddThreadVote(thread, user.Nickname, vote.Voice)
+	newVotes, err := u.repo.AddThreadVote(thread, userNickname, vote.Voice)
 	thread.Votes = newVotes
 	return thread, err
 }
@@ -174,6 +177,9 @@ func (u *Usecase) getPostDetails(id int, related []string) (*postDetails, error)
 		case "user":
 			details.Author, err = u.userRepo.GetUserByNickname(post.Author)
 		case "forum":
+			if err := u.repo.FillForumPostsCount(post.Forum); err != nil {
+				return nil, err
+			}
 			details.Forum, err = u.repo.GetForumBySlug(post.Forum)
 		case "thread":
 			details.Thread, err = u.repo.GetThreadByID(post.Thread)

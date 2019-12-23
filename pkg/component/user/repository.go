@@ -7,14 +7,21 @@ import (
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
+	"strings"
+	"sync"
 )
 
 type Repository struct {
-	db *sqlx.DB
+	db             *sqlx.DB
+	userCache      map[string]string
+	userCacheMutex sync.RWMutex
 }
 
 func NewRepository(db *sqlx.DB) Repository {
-	return Repository{db: db}
+	return Repository{
+		db:        db,
+		userCache: make(map[string]string),
+	}
 }
 
 func (r *Repository) GetUserByID(userID int) (*model.User, error) {
@@ -27,6 +34,9 @@ func (r *Repository) GetUserByID(userID int) (*model.User, error) {
 }
 
 func (r *Repository) GetUserByNickname(nickname string) (*model.User, error) {
+	if _, ok := r.getCachedUser(nickname); !ok {
+		return nil, consts.ErrNotFound
+	}
 	user := model.User{}
 	err := r.db.Get(&user, `select * from "user" where nickname = $1`, nickname)
 	if err != nil {
@@ -35,13 +45,30 @@ func (r *Repository) GetUserByNickname(nickname string) (*model.User, error) {
 	return &user, nil
 }
 
-func (r *Repository) GetUserNickname(nickname string) (*model.User, error) {
-	user := model.User{}
-	err := r.db.Get(&user, `select nickname from "user" where nickname = $1`, nickname)
-	if err != nil {
-		return nil, repository.Error(err)
+func (r *Repository) getCachedUser(nickname string) (string, bool) {
+	r.userCacheMutex.RLock()
+	userNickname, ok := r.userCache[strings.ToLower(nickname)]
+	r.userCacheMutex.RUnlock()
+	return userNickname, ok
+}
+
+func (r *Repository) cacheUser(nickname string) {
+	r.userCacheMutex.Lock()
+	r.userCache[strings.ToLower(nickname)] = nickname
+	r.userCacheMutex.Unlock()
+}
+
+//GetUserNickname returns real user nickname (case insensitive search)
+func (r *Repository) GetUserNickname(nickname string) (string, error) {
+	if nickname, ok := r.getCachedUser(nickname); ok {
+		return nickname, nil
 	}
-	return &user, nil
+	var userNickname string
+	err := r.db.Get(&userNickname, `select nickname from "user" where nickname = $1`, nickname)
+	if err != nil {
+		return "", repository.Error(err)
+	}
+	return userNickname, nil
 }
 
 func (r *Repository) getUserByEmail(email string) (*model.User, error) {
@@ -74,6 +101,7 @@ func (r *Repository) createUser(nickname, email, fullname, about string) (*model
 	if err != nil {
 		return nil, err
 	}
+	r.cacheUser(nickname)
 	return r.GetUserByID(id)
 }
 

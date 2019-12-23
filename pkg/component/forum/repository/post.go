@@ -19,12 +19,23 @@ const (
 	pathDelim    = "."
 	maxIDLength  = 7
 	maxTreeLevel = 5
+
+	postsChunkSize = 50
 )
 
 var zeroPathStud = strings.Repeat("0", maxIDLength)
 
+type postPath struct {
+	ID   int
+	Path string
+}
+
 func (r *Repository) GetPostByID(id int) (*model.Post, error) {
 	return r.getPost("id=$1", id)
+}
+
+func (r *Repository) GetPostThreadByID(id int) (*model.Post, error) {
+	return r.getPostFields("thread", "id=$1", id)
 }
 
 func (r *Repository) getPost(filter string, params ...interface{}) (*model.Post, error) {
@@ -80,9 +91,8 @@ func (r *Repository) CreatePosts(posts []*forumModel.PostCreate, thread *model.T
 
 func (r *Repository) chunkPosts(posts []*forumModel.PostCreate) [][]*forumModel.PostCreate {
 	chunked := make([][]*forumModel.PostCreate, 0)
-	chunkSize := 200
-	for i := 0; i < len(posts); i += chunkSize {
-		end := i + chunkSize
+	for i := 0; i < len(posts); i += postsChunkSize {
+		end := i + postsChunkSize
 		if end > len(posts) {
 			end = len(posts)
 		}
@@ -97,11 +107,6 @@ func (r *Repository) createPostsInTx(forum *model.Forum, thread *model.Thread, p
 		return nil, err
 	}
 	insertedIds, err := r.bulkCreatePosts(tx, forum, thread, posts, created)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	err = r.incForumPostsCount(tx, forum.Slug, len(posts))
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -146,18 +151,16 @@ func (r *Repository) incForumPostsCount(tx *sqlx.Tx, forum string, newCount int)
 }
 
 func (r *Repository) fillPostsPath(tx *sqlx.Tx, ids []int, posts []*forumModel.PostCreate) error {
+	paths := make([]postPath, 0, len(posts))
 	for i, id := range ids {
 		post := posts[i]
 		path, err := r.getPostPath(id, post.Parent)
 		if err != nil {
 			return err
 		}
-		err = r.updatePostPath(tx, id, path)
-		if err != nil {
-			return err
-		}
+		paths = append(paths, postPath{ID: id, Path: path})
 	}
-	return nil
+	return r.updatePostsPath(tx, paths)
 }
 
 func (r *Repository) getPostPath(id, parentID int) (string, error) {
@@ -187,6 +190,28 @@ func (r *Repository) padPostID(id int) string {
 	return fmt.Sprintf("%0"+strconv.Itoa(maxIDLength)+"d", id)
 }
 
+func (r *Repository) updatePostsPath(tx *sqlx.Tx, paths []postPath) error {
+	if _, err := tx.Exec(`create temporary table if not exists post_path (id int, path text)`); err != nil {
+		return err
+	}
+	columns := 2
+	placeholders := make([]string, 0, len(paths))
+	args := make([]interface{}, 0, len(paths)*columns)
+	i := 0
+	for _, p := range paths {
+		placeholders = append(placeholders, fmt.Sprintf("($%d, $%d)", i*columns+1, i*columns+2))
+		args = append(args, p.ID)
+		args = append(args, p.Path)
+		i++
+	}
+	query := "insert into post_path (id, path) values " + strings.Join(placeholders, ",")
+	if _, err := tx.Exec(query, args...); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`update post set path = post_path.path from post_path where post.id = post_path.id`)
+	return err
+}
+
 func (r *Repository) UpdatePostMessage(id int, message string) (*model.Post, error) {
 	if message != "" {
 		_, err := r.db.Exec(
@@ -198,9 +223,4 @@ func (r *Repository) UpdatePostMessage(id int, message string) (*model.Post, err
 		}
 	}
 	return r.GetPostByID(id)
-}
-
-func (r *Repository) updatePostPath(tx *sqlx.Tx, id int, path string) error {
-	_, err := tx.Exec(`update post set path = $1 where id = $2`, path, id)
-	return err
 }

@@ -60,3 +60,11 @@ create table "vote"
     "voice"    int    not null
 );
 create index on "vote" ("thread", "nickname");
+
+
+create table "forum_user"
+(
+    "forum" text not null,
+    "user"  text not null
+);
+create index on "forum_user" ("forum");

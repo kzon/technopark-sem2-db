@@ -2,18 +2,9 @@ package repository
 
 import (
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
 )
-
-type Repository struct {
-	db *sqlx.DB
-}
-
-func NewRepository(db *sqlx.DB) Repository {
-	return Repository{db: db}
-}
 
 func (r *Repository) GetForumByID(id int) (*model.Forum, error) {
 	return r.getForum("*", "id=$1", id)
@@ -78,11 +69,4 @@ func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool
 		err = r.db.Select(&users, query, forum.Slug, since)
 	}
 	return users, err
-}
-
-func (r *Repository) getOrder(desc bool) string {
-	if desc {
-		return "desc"
-	}
-	return "asc"
 }

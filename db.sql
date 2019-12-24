@@ -24,14 +24,14 @@ create table "thread"
     "id"      serial primary key,
     "slug"    citext        not null,
     "title"   text          not null,
-    "author"  citext        not null,
-    "forum"   citext        not null,
+    "author"  text          not null,
+    "forum"   text          not null,
     "message" text          not null,
     "votes"   int default 0 not null,
     "created" timestamptz   not null
 );
 create index on "thread" ("slug");
-create index on "thread" ("created");
+create index on "thread" ("created", "forum");
 create index on "thread" ("forum", "author");
 
 
@@ -40,8 +40,8 @@ create table "post"
     "id"       serial primary key,
     "parent"   int         not null,
     "path"     text        not null default '',
-    "author"   int      not null,
-    "forum"    int      not null,
+    "author"   text        not null,
+    "forum"    text        not null,
     "thread"   int         not null,
     "message"  text        not null,
     "isEdited" bool        not null default false,
@@ -60,11 +60,3 @@ create table "vote"
     "voice"    int    not null
 );
 create index on "vote" ("thread", "nickname");
-
-
-create table "forum_user"
-(
-    "forum" text not null,
-    "user"  text not null
-);
-create index on "forum_user" ("forum");

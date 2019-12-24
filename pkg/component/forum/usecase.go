@@ -153,16 +153,16 @@ func (u *Usecase) getForum(slug string) (*model.Forum, error) {
 	return forum, nil
 }
 
-func (u *Usecase) getForumThreads(forum, since string, limit int, desc bool) (model.Threads, error) {
-	if _, err := u.repo.GetForumSlug(forum); err != nil {
+func (u *Usecase) getForumThreads(forumSlug, since string, limit int, desc bool) (model.Threads, error) {
+	forum, err := u.repo.GetForumSlug(forumSlug)
+	if err != nil {
 		return nil, err
 	}
 	var threads model.Threads
-	var err error
 	if since == "" {
-		threads, err = u.repo.GetForumThreads(forum, limit, desc)
+		threads, err = u.repo.GetForumThreads(forum.Slug, limit, desc)
 	} else {
-		threads, err = u.repo.GetForumThreadsSince(forum, since, limit, desc)
+		threads, err = u.repo.GetForumThreadsSince(forum.Slug, since, limit, desc)
 	}
 	if err != nil {
 		return nil, err

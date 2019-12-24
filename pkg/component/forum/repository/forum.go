@@ -38,17 +38,18 @@ func (r *Repository) CreateForum(title, slug, user string) (*model.Forum, error)
 	return r.GetForumByID(id)
 }
 
-func (r *Repository) FillForumPostsCount(forum string) error {
+func (r *Repository) FillForumPostsCount(forum int) (int, error) {
 	var count int
-	if err := r.db.Get(&count, `select count(*) from post where forum=$1`, forum); err != nil {
-		return err
-	}
-	_, err := r.db.Exec(`update forum set posts=$1`, count)
-	return err
+	err := r.db.Get(
+		&count,
+		`update forum set posts=(select count(*) from post where forum=$1) where id=$1 and posts=0 returning posts`,
+		forum,
+	)
+	return count, err
 }
 
 func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool) (model.Users, error) {
-	forum, err := r.GetForumSlug(forumSlug)
+	forum, err := r.GetForumBySlug(forumSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool
 		return nil, err
 	}
 	if needFill {
-		if err := r.fillForumUsers(forum.Slug); err != nil {
+		if err := r.fillForumUsers(forum); err != nil {
 			return nil, err
 		}
 	}
@@ -94,18 +95,20 @@ func (r *Repository) needFillForumUsers(forum string) (bool, error) {
 	return result, err
 }
 
-func (r *Repository) fillForumUsers(forum string) error {
+func (r *Repository) fillForumUsers(forum *model.Forum) error {
 	nicknames := make([]string, 0)
 	err := r.db.Select(&nicknames,
 		`select nickname from "user" where (
-				exists(select id from post where author = nickname and forum = $1) or
-				exists(select id from thread where author = nickname and forum = $1)
-			)`, forum)
+				exists(select id from post where author = "user".id and forum = $1) or
+				exists(select id from thread where author = nickname and forum = $2)
+			)`,
+		forum.ID, forum.Slug,
+	)
 	if err != nil {
 		return err
 	}
-	for _, n := range nicknames {
-		_, err := r.db.Exec(`insert into forum_user (forum, "user") values ($1, $2)`, forum, n)
+	for _, nick := range nicknames {
+		_, err := r.db.Exec(`insert into forum_user (forum, "user") values ($1, $2)`, forum.Slug, nick)
 		if err != nil {
 			return err
 		}

@@ -16,6 +16,11 @@ type Handler struct {
 
 func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	h := Handler{usecase: usecase}
+
+	e.POST("/api/user/:nickname/create", h.handleUserCreate)
+	e.GET("/api/user/:nickname/profile", h.handleGetUserProfile)
+	e.POST("/api/user/:nickname/profile", h.handleUserUpdate)
+
 	e.POST("/api/forum/create", h.handleForumCreate)
 	e.POST("/api/forum/:slug/create", h.handleThreadCreate)
 	e.GET("/api/forum/:slug/details", h.handleGetForumDetails)
@@ -32,6 +37,44 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	e.POST("/api/post/:id/details", h.handlePostUpdate)
 
 	return h
+}
+
+func (h *Handler) handleUserCreate(c echo.Context) error {
+	u := forumModel.UserInput{}
+	if err := c.Bind(&u); err != nil {
+		return delivery.BadRequest(c, err)
+	}
+	users, err := h.usecase.createUser(c.Param("nickname"), u.Email, u.Fullname, u.About)
+	if errors.Is(err, consts.ErrConflict) {
+		return delivery.Conflict(c, users)
+	}
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Created(c, users[0])
+}
+
+func (h *Handler) handleGetUserProfile(c echo.Context) error {
+	u, err := h.usecase.getUserByNickname(c.Param("nickname"))
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, u)
+}
+
+func (h *Handler) handleUserUpdate(c echo.Context) error {
+	u := forumModel.UserInput{}
+	if err := c.Bind(&u); err != nil {
+		return delivery.BadRequest(c, err)
+	}
+	user, err := h.usecase.updateUser(c.Param("nickname"), u.Email, u.Fullname, u.About)
+	if errors.Is(err, consts.ErrConflict) {
+		return delivery.ConflictWithMessage(c, err)
+	}
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, user)
 }
 
 func (h Handler) handleForumCreate(c echo.Context) error {
@@ -184,14 +227,14 @@ func (h *Handler) handleGetPostDetails(c echo.Context) error {
 }
 
 func (h *Handler) handlePostUpdate(c echo.Context) error {
-	t := forumModel.PostUpdate{}
-	if err := c.Bind(&t); err != nil {
+	p := forumModel.PostUpdate{}
+	if err := c.Bind(&p); err != nil {
 		return delivery.BadRequest(c, err)
 	}
 	id, _ := strconv.Atoi(c.Param("id"))
-	thread, err := h.usecase.updatePost(id, t.Message)
+	post, err := h.usecase.updatePost(id, p.Message)
 	if err != nil {
 		return delivery.Error(c, err)
 	}
-	return delivery.Ok(c, thread)
+	return delivery.Ok(c, post)
 }

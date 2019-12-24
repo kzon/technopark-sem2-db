@@ -6,7 +6,6 @@ import (
 	"github.com/kzon/technopark-sem2-db/pkg/component/forum"
 	forumRepository "github.com/kzon/technopark-sem2-db/pkg/component/forum/repository"
 	"github.com/kzon/technopark-sem2-db/pkg/component/service"
-	"github.com/kzon/technopark-sem2-db/pkg/component/user"
 	"github.com/labstack/echo"
 	"log"
 	"os"
@@ -21,12 +20,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	userRepo := user.NewRepository(db)
-	userUsecase := user.NewUsecase(userRepo)
-	user.NewHandler(e, userUsecase)
-
 	forumRepo := forumRepository.NewRepository(db)
-	forumUsecase := forum.NewUsecase(forumRepo, userRepo)
+	forumUsecase := forum.NewUsecase(forumRepo)
 	forum.NewHandler(e, forumUsecase)
 
 	serviceRepo := service.NewRepository(db)

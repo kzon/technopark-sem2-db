@@ -2,12 +2,12 @@ package repository
 
 import (
 	"fmt"
+	forumModel "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
-	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"strings"
 )
 
-func (r *Repository) GetThreadPosts(thread, limit int, since *int, sort string, desc bool) (model.Posts, error) {
+func (r *Repository) GetThreadPosts(thread, limit int, since *int, sort string, desc bool) ([]*forumModel.PostOutput, error) {
 	switch sort {
 	case SortFlat, "":
 		return r.getThreadPostsFlat(thread, limit, since, desc)
@@ -19,26 +19,26 @@ func (r *Repository) GetThreadPosts(thread, limit int, since *int, sort string, 
 	return nil, fmt.Errorf("%w: unknown sort method '%s'", consts.ErrNotFound, sort)
 }
 
-func (r *Repository) getThreadPostsFlat(thread, limit int, since *int, desc bool) (model.Posts, error) {
+func (r *Repository) getThreadPostsFlat(thread, limit int, since *int, desc bool) ([]*forumModel.PostOutput, error) {
 	order := "asc"
 	if desc {
 		order = "desc"
 	}
-	orderBy := []string{"created " + order, "id " + order}
+	orderBy := []string{"created " + order, "post.id " + order}
 	filter := "thread = $1"
 	params := []interface{}{thread}
 	if since != nil {
 		if desc {
-			filter += " and id < $2"
+			filter += " and post.id < $2"
 		} else {
-			filter += " and id > $2"
+			filter += " and post.id > $2"
 		}
 		params = append(params, *since)
 	}
 	return r.getPosts(orderBy, limit, filter, params...)
 }
 
-func (r *Repository) getThreadPostsTree(thread, limit int, since *int, desc bool) (model.Posts, error) {
+func (r *Repository) getThreadPostsTree(thread, limit int, since *int, desc bool) ([]*forumModel.PostOutput, error) {
 	conditions := []string{"thread = $1"}
 	params := []interface{}{thread}
 	if since != nil {
@@ -53,7 +53,7 @@ func (r *Repository) getThreadPostsTree(thread, limit int, since *int, desc bool
 	return r.getPosts(orderBy, limit, filter, params...)
 }
 
-func (r *Repository) getThreadPostsParentTree(thread, limit int, since *int, desc bool) (model.Posts, error) {
+func (r *Repository) getThreadPostsParentTree(thread, limit int, since *int, desc bool) ([]*forumModel.PostOutput, error) {
 	conditions := []string{"parent=0", "thread=$1"}
 	if since != nil {
 		sincePost, err := r.getPostFields("path", "id=$1", *since)
@@ -64,19 +64,30 @@ func (r *Repository) getThreadPostsParentTree(thread, limit int, since *int, des
 		conditions = append(conditions, sinceCond)
 	}
 	filter := strings.Join(conditions, " and ")
-	var parents model.Posts
+	var parents []*forumModel.PostOutput
 	err := r.db.Select(&parents, fmt.Sprintf(
-		`select * from post where %s order by id %s limit %d`, filter, r.getOrder(desc), limit),
+		`select post.id,parent,thread,message,created,
+				forum.slug as forum,"user".nickname as author 
+				from post 
+				join forum on forum.id=post.forum
+				join "user" on "user".id=post.author
+				where %s order by id %s limit %d`, filter, r.getOrder(desc), limit),
 		thread,
 	)
 	if err != nil {
 		return nil, err
 	}
-	posts := make(model.Posts, 0)
+	posts := make([]*forumModel.PostOutput, 0)
 	for _, parent := range parents {
-		var childs model.Posts
+		var childs []*forumModel.PostOutput
 		err := r.db.Select(&childs, fmt.Sprintf(
-			`select * from post where path like '%s.%%' and parent<>0 order by path`, r.padPostID(parent.ID),
+			`select post.id,parent,thread,message,created,
+					forum.slug as forum,"user".nickname as author 
+					from post 
+					join forum on forum.id=post.forum
+					join "user" on "user".id=post.author 
+					where path like '%s.%%' and parent<>0 order by path`,
+			r.padPostID(parent.ID),
 		))
 		if err != nil {
 			return nil, err

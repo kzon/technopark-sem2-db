@@ -1,6 +1,12 @@
 package model
 
 type (
+	UserInput struct {
+		Email    string `json:"email"`
+		Fullname string `json:"fullname"`
+		About    string `json:"about"`
+	}
+
 	ForumCreate struct {
 		Slug  string `json:"slug"`
 		Title string `json:"title"`
@@ -28,6 +34,17 @@ type (
 
 	PostUpdate struct {
 		Message string `json:"message"`
+	}
+
+	PostOutput struct {
+		ID       int    `db:"id" json:"id"`
+		Parent   int    `db:"parent" json:"parent"`
+		Author   string `db:"author" json:"author"`
+		Forum    string `db:"forum" json:"forum"`
+		Thread   int    `db:"thread" json:"thread"`
+		Message  string `db:"message" json:"message"`
+		IsEdited bool   `db:"isEdited" json:"isEdited"`
+		Created  string `db:"created" json:"created"`
 	}
 
 	Vote struct {

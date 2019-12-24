@@ -3,14 +3,21 @@ package repository
 import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
+	"sync"
 )
 
 type Repository struct {
 	db *sqlx.DB
+
+	userCache      map[string]string
+	userCacheMutex sync.RWMutex
 }
 
 func NewRepository(db *sqlx.DB) Repository {
-	return Repository{db: db}
+	return Repository{
+		db:        db,
+		userCache: make(map[string]string),
+	}
 }
 
 func (r *Repository) getOrder(desc bool) string {

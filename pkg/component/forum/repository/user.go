@@ -1,48 +1,49 @@
-package user
+package repository
 
 import (
 	"database/sql"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
 	"strings"
-	"sync"
 )
 
-type Repository struct {
-	db             *sqlx.DB
-	userCache      map[string]string
-	userCacheMutex sync.RWMutex
-}
-
-func NewRepository(db *sqlx.DB) Repository {
-	return Repository{
-		db:        db,
-		userCache: make(map[string]string),
-	}
-}
-
-func (r *Repository) GetUserByID(userID int) (*model.User, error) {
-	user := model.User{}
-	err := r.db.Get(&user, `select * from "user" where id = $1`, userID)
+func (r *Repository) GetUserByID(id int) (*model.User, error) {
+	user, err := r.getUserFields("*", "id=$1", id)
 	if err == sql.ErrNoRows {
 		return nil, consts.ErrNotFound
 	}
-	return &user, err
+	return user, err
 }
 
 func (r *Repository) GetUserByNickname(nickname string) (*model.User, error) {
 	if _, ok := r.getCachedUser(nickname); !ok {
 		return nil, consts.ErrNotFound
 	}
-	user := model.User{}
-	err := r.db.Get(&user, `select * from "user" where nickname = $1`, nickname)
+	user, err := r.getUserFields("*", "nickname=$1", nickname)
 	if err != nil {
 		return nil, repository.Error(err)
 	}
-	return &user, nil
+	return user, nil
+}
+
+func (r *Repository) getUserIDByNickname(nickname string) (int, error) {
+	user, err := r.getUserFields("id", "nickname=$1", nickname)
+	if err != nil {
+		return 0, err
+	}
+	return user.ID, nil
+}
+
+func (r *Repository) getUserFields(fields, filter string, params ...interface{}) (*model.User, error) {
+	query := "select " + fields + ` from "user"`
+	if filter != "" {
+		query += " where " + filter
+	}
+	var user model.User
+	err := r.db.Get(&user, query, params...)
+	return &user, err
 }
 
 func (r *Repository) getCachedUser(nickname string) (string, bool) {
@@ -63,24 +64,22 @@ func (r *Repository) GetUserNickname(nickname string) (string, error) {
 	if nickname, ok := r.getCachedUser(nickname); ok {
 		return nickname, nil
 	}
-	var userNickname string
-	err := r.db.Get(&userNickname, `select nickname from "user" where nickname = $1`, nickname)
+	user, err := r.getUserFields("nickname", "nickname=$1", nickname)
 	if err != nil {
 		return "", repository.Error(err)
 	}
-	return userNickname, nil
+	return user.Nickname, nil
 }
 
 func (r *Repository) getUserByEmail(email string) (*model.User, error) {
-	user := model.User{}
-	err := r.db.Get(&user, `select * from "user" where email = $1`, email)
+	user, err := r.getUserFields("*", "email=$1", email)
 	if err != nil {
 		return nil, repository.Error(err)
 	}
-	return &user, nil
+	return user, nil
 }
 
-func (r *Repository) getUsersByNicknameOrEmail(nickname, email string) ([]*model.User, error) {
+func (r *Repository) GetUsersByNicknameOrEmail(nickname, email string) ([]*model.User, error) {
 	var users []*model.User
 	err := r.db.Select(&users,
 		`select * from "user" where nickname = $1 or email = $2`,
@@ -92,7 +91,7 @@ func (r *Repository) getUsersByNicknameOrEmail(nickname, email string) ([]*model
 	return users, nil
 }
 
-func (r *Repository) createUser(nickname, email, fullname, about string) (*model.User, error) {
+func (r *Repository) CreateUser(nickname, email, fullname, about string) (*model.User, error) {
 	var id int
 	err := r.db.QueryRow(
 		`insert into "user" (nickname, email, fullname, about) values ($1, $2, $3, $4) returning id`,
@@ -105,7 +104,7 @@ func (r *Repository) createUser(nickname, email, fullname, about string) (*model
 	return r.GetUserByID(id)
 }
 
-func (r *Repository) updateUserByNickname(nickname, email, fullname, about string) error {
+func (r *Repository) UpdateUserByNickname(nickname, email, fullname, about string) error {
 	userByEmail, err := r.getUserByEmail(email)
 	if err != nil && err != consts.ErrNotFound {
 		return err

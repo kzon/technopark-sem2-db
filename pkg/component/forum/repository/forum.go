@@ -51,15 +51,11 @@ func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool
 			sinceFilter = "and nickname > $2"
 		}
 	}
-	limitExpr := ""
-	if limit > 0 {
-		limitExpr = fmt.Sprintf("limit %d", limit)
-	}
 	query := fmt.Sprintf(
 		`select "user".* from "user"
          		join forum_user on nickname = forum_user.user
 				where forum = $1 %s order by nickname %s %s`,
-		sinceFilter, r.getOrder(desc), limitExpr,
+		sinceFilter, r.getOrder(desc), r.getLimit(limit),
 	)
 	users := make(model.Users, 0)
 	if since == "" {

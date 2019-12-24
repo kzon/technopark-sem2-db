@@ -10,11 +10,11 @@ import (
 
 func (r *Repository) GetForumThreads(forum string, limit int, desc bool) (model.Threads, error) {
 	query := fmt.Sprintf(
-		"select * from thread where forum = $1 order by created %s limit %d",
-		r.getOrder(desc), limit,
+		"select * from thread where forum = $1 order by created %s limit $2",
+		r.getOrder(desc),
 	)
 	var threads model.Threads
-	err := r.db.Select(&threads, query, forum)
+	err := r.db.Select(&threads, query, forum, limit)
 	return threads, err
 }
 
@@ -24,11 +24,11 @@ func (r *Repository) GetForumThreadsSince(forum, since string, limit int, desc b
 		createdCond = "<="
 	}
 	query := fmt.Sprintf(
-		"select * from thread where forum = $1 and created %s $2 order by created %s limit %d",
-		createdCond, r.getOrder(desc), limit,
+		"select * from thread where forum = $1 and created %s $2 order by created %s limit $3",
+		createdCond, r.getOrder(desc),
 	)
 	threads := make(model.Threads, 0)
-	err := r.db.Select(&threads, query, forum, since)
+	err := r.db.Select(&threads, query, forum, since, limit)
 	return threads, err
 }
 

@@ -1,9 +1,9 @@
-package forum
+package api
 
 import (
 	"fmt"
-	forumModel "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
-	"github.com/kzon/technopark-sem2-db/pkg/component/forum/repository"
+	apiModel "github.com/kzon/technopark-sem2-db/pkg/api/model"
+	"github.com/kzon/technopark-sem2-db/pkg/api/repository"
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"time"
@@ -54,7 +54,7 @@ func (u *Usecase) updateUser(nickname, email, fullname, about string) (*model.Us
 }
 
 func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error) {
-	userNickname, err := u.repo.GetUserNickname(nickname)
+	user, err := u.repo.GetUserNickname(nickname)
 	if err != nil {
 		return nil, err
 	}
@@ -67,10 +67,10 @@ func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error
 		return existingForum, fmt.Errorf("%w: forum with this slug already exists", consts.ErrConflict)
 	}
 
-	return u.repo.CreateForum(title, slug, userNickname)
+	return u.repo.CreateForum(title, slug, user.Nickname)
 }
 
-func (u *Usecase) createThread(forumSlug string, thread forumModel.ThreadCreate) (*model.Thread, error) {
+func (u *Usecase) createThread(forumSlug string, thread apiModel.ThreadCreate) (*model.Thread, error) {
 	if _, err := u.repo.GetUserNickname(thread.Author); err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (u *Usecase) updateThread(threadSlugOrID string, message, title string) (*m
 	return u.repo.UpdateThread(threadSlugOrID, message, title)
 }
 
-func (u *Usecase) createPosts(threadSlugOrID string, posts []*forumModel.PostCreate) ([]*forumModel.PostOutput, error) {
+func (u *Usecase) createPosts(threadSlugOrID string, posts []*apiModel.PostCreate) (model.Posts, error) {
 	thread, err := u.repo.GetThreadFieldsBySlugOrID("id, forum", threadSlugOrID)
 	if err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func (u *Usecase) createPosts(threadSlugOrID string, posts []*forumModel.PostCre
 	return u.repo.CreatePosts(posts, thread)
 }
 
-func (u *Usecase) checkPostsCreate(posts []*forumModel.PostCreate, threadID int) error {
+func (u *Usecase) checkPostsCreate(posts []*apiModel.PostCreate, threadID int) error {
 	for _, post := range posts {
 		if err := u.checkPostCreate(post, threadID); err != nil {
 			return err
@@ -120,12 +120,12 @@ func (u *Usecase) checkPostsCreate(posts []*forumModel.PostCreate, threadID int)
 	return nil
 }
 
-func (u *Usecase) checkPostCreate(post *forumModel.PostCreate, threadID int) error {
+func (u *Usecase) checkPostCreate(post *apiModel.PostCreate, threadID int) error {
 	if _, err := u.repo.GetUserNickname(post.Author); err != nil {
 		return err
 	}
 	if post.Parent != 0 {
-		parent, err := u.repo.GetPostThreadByID(post.Parent)
+		parent, err := u.repo.GetPostByID(post.Parent)
 		if err == consts.ErrNotFound {
 			return fmt.Errorf("%w: post parent do not exists", consts.ErrConflict)
 		}
@@ -140,17 +140,7 @@ func (u *Usecase) checkPostCreate(post *forumModel.PostCreate, threadID int) err
 }
 
 func (u *Usecase) getForum(slug string) (*model.Forum, error) {
-	forum, err := u.repo.GetForumBySlug(slug)
-	if err != nil {
-		return nil, err
-	}
-	if forum.Posts == 0 {
-		forum.Posts, err = u.repo.FillForumPostsCount(forum.ID)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return forum, nil
+	return u.repo.GetForumBySlug(slug)
 }
 
 func (u *Usecase) getForumThreads(forumSlug, since string, limit int, desc bool) (model.Threads, error) {
@@ -174,16 +164,16 @@ func (u *Usecase) getForumUsers(forum, since string, limit int, desc bool) (mode
 	return u.repo.GetForumUsers(forum, since, limit, desc)
 }
 
-func (u *Usecase) voteForThread(threadSlugOrID string, vote forumModel.Vote) (*model.Thread, error) {
+func (u *Usecase) voteForThread(threadSlugOrID string, vote apiModel.Vote) (*model.Thread, error) {
 	thread, err := u.repo.GetThreadBySlugOrID(threadSlugOrID)
 	if err != nil {
 		return nil, err
 	}
-	userNickname, err := u.repo.GetUserNickname(vote.Nickname)
+	user, err := u.repo.GetUserNickname(vote.Nickname)
 	if err != nil {
 		return nil, err
 	}
-	newVotes, err := u.repo.AddThreadVote(thread, userNickname, vote.Voice)
+	newVotes, err := u.repo.AddThreadVote(thread, user.Nickname, vote.Voice)
 	thread.Votes = newVotes
 	return thread, err
 }
@@ -192,7 +182,7 @@ func (u *Usecase) getThread(threadSlugOrID string) (*model.Thread, error) {
 	return u.repo.GetThreadBySlugOrID(threadSlugOrID)
 }
 
-func (u *Usecase) getThreadPosts(threadSlugOrID string, limit int, since *int, sort string, desc bool) ([]*forumModel.PostOutput, error) {
+func (u *Usecase) getThreadPosts(threadSlugOrID string, limit int, since *int, sort string, desc bool) (model.Posts, error) {
 	thread, err := u.repo.GetThreadFieldsBySlugOrID("id", threadSlugOrID)
 	if err != nil {
 		return nil, err
@@ -201,7 +191,7 @@ func (u *Usecase) getThreadPosts(threadSlugOrID string, limit int, since *int, s
 }
 
 type postDetails struct {
-	Post   *forumModel.PostOutput
+	Post   *model.Post
 	Author *model.User
 	Forum  *model.Forum
 	Thread *model.Thread
@@ -219,12 +209,6 @@ func (u *Usecase) getPostDetails(id int, related []string) (*postDetails, error)
 			details.Author, err = u.repo.GetUserByNickname(post.Author)
 		case "forum":
 			details.Forum, err = u.repo.GetForumBySlug(post.Forum)
-			if details.Forum.Posts == 0 {
-				details.Forum.Posts, err = u.repo.FillForumPostsCount(details.Forum.ID)
-				if err != nil {
-					return nil, err
-				}
-			}
 		case "thread":
 			details.Thread, err = u.repo.GetThreadByID(post.Thread)
 		}
@@ -235,6 +219,36 @@ func (u *Usecase) getPostDetails(id int, related []string) (*postDetails, error)
 	return &details, nil
 }
 
-func (u *Usecase) updatePost(id int, message string) (*forumModel.PostOutput, error) {
-	return u.repo.UpdatePost(id, message)
+func (u *Usecase) updatePost(id int, message string) (*model.Post, error) {
+	return u.repo.UpdatePostMessage(id, message)
+}
+
+func (u *Usecase) getStatus() (s apiModel.Status, err error) {
+	forum, err := u.repo.CountForums()
+	if err != nil {
+		return
+	}
+	post, err := u.repo.CountPosts()
+	if err != nil {
+		return
+	}
+	thread, err := u.repo.CountThreads()
+	if err != nil {
+		return
+	}
+	user, err := u.repo.CountUsers()
+	if err != nil {
+		return
+	}
+	s = apiModel.Status{
+		Forum:  forum,
+		Post:   post,
+		Thread: thread,
+		User:   user,
+	}
+	return
+}
+
+func (u *Usecase) clear() error {
+	return u.repo.Clear()
 }

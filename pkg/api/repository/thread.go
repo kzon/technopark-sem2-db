@@ -2,7 +2,7 @@ package repository
 
 import (
 	"fmt"
-	forumModel "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
+	model2 "github.com/kzon/technopark-sem2-db/pkg/api/model"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
 	"strconv"
@@ -61,7 +61,7 @@ func (r *Repository) getThread(fields, filter string, params ...interface{}) (*m
 	return &t, nil
 }
 
-func (r *Repository) CreateThread(forum *model.Forum, thread forumModel.ThreadCreate) (*model.Thread, error) {
+func (r *Repository) CreateThread(forum *model.Forum, thread model2.ThreadCreate) (*model.Thread, error) {
 	id, err := r.createThreadInTx(forum, thread)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (r *Repository) CreateThread(forum *model.Forum, thread forumModel.ThreadCr
 	return r.GetThreadByID(id)
 }
 
-func (r *Repository) createThreadInTx(forum *model.Forum, thread forumModel.ThreadCreate) (id int, err error) {
+func (r *Repository) createThreadInTx(forum *model.Forum, thread model2.ThreadCreate) (id int, err error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return

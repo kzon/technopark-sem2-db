@@ -1,8 +1,8 @@
-package forum
+package api
 
 import (
 	"errors"
-	forumModel "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
+	apiModel "github.com/kzon/technopark-sem2-db/pkg/api/model"
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/delivery"
 	"github.com/labstack/echo"
@@ -36,11 +36,14 @@ func NewHandler(e *echo.Echo, usecase Usecase) Handler {
 	e.GET("/api/post/:id/details", h.handleGetPostDetails)
 	e.POST("/api/post/:id/details", h.handlePostUpdate)
 
+	e.GET("/api/service/status", h.handleStatus)
+	e.POST("/api/service/clear", h.handleClear)
+
 	return h
 }
 
 func (h *Handler) handleUserCreate(c echo.Context) error {
-	u := forumModel.UserInput{}
+	u := apiModel.UserInput{}
 	if err := c.Bind(&u); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -63,7 +66,7 @@ func (h *Handler) handleGetUserProfile(c echo.Context) error {
 }
 
 func (h *Handler) handleUserUpdate(c echo.Context) error {
-	u := forumModel.UserInput{}
+	u := apiModel.UserInput{}
 	if err := c.Bind(&u); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -78,7 +81,7 @@ func (h *Handler) handleUserUpdate(c echo.Context) error {
 }
 
 func (h Handler) handleForumCreate(c echo.Context) error {
-	forumToCreate := forumModel.ForumCreate{}
+	forumToCreate := apiModel.ForumCreate{}
 	if err := c.Bind(&forumToCreate); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -93,7 +96,7 @@ func (h Handler) handleForumCreate(c echo.Context) error {
 }
 
 func (h *Handler) handleThreadCreate(c echo.Context) error {
-	thread := forumModel.ThreadCreate{}
+	thread := apiModel.ThreadCreate{}
 	if err := c.Bind(&thread); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -138,7 +141,7 @@ func (h *Handler) handleGetForumUsers(c echo.Context) error {
 }
 
 func (h *Handler) handlePostCreate(c echo.Context) error {
-	var posts []*forumModel.PostCreate
+	var posts []*apiModel.PostCreate
 	if err := c.Bind(&posts); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -150,7 +153,7 @@ func (h *Handler) handlePostCreate(c echo.Context) error {
 }
 
 func (h *Handler) handleVoteForThread(c echo.Context) error {
-	var vote forumModel.Vote
+	var vote apiModel.Vote
 	if err := c.Bind(&vote); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -170,7 +173,7 @@ func (h *Handler) handleGetThreadDetails(c echo.Context) error {
 }
 
 func (h *Handler) handleThreadUpdate(c echo.Context) error {
-	t := forumModel.ThreadUpdate{}
+	t := apiModel.ThreadUpdate{}
 	if err := c.Bind(&t); err != nil {
 		return delivery.BadRequest(c, err)
 	}
@@ -227,14 +230,30 @@ func (h *Handler) handleGetPostDetails(c echo.Context) error {
 }
 
 func (h *Handler) handlePostUpdate(c echo.Context) error {
-	p := forumModel.PostUpdate{}
-	if err := c.Bind(&p); err != nil {
+	t := apiModel.PostUpdate{}
+	if err := c.Bind(&t); err != nil {
 		return delivery.BadRequest(c, err)
 	}
 	id, _ := strconv.Atoi(c.Param("id"))
-	post, err := h.usecase.updatePost(id, p.Message)
+	thread, err := h.usecase.updatePost(id, t.Message)
 	if err != nil {
 		return delivery.Error(c, err)
 	}
-	return delivery.Ok(c, post)
+	return delivery.Ok(c, thread)
+}
+
+func (h *Handler) handleStatus(c echo.Context) error {
+	status, err := h.usecase.getStatus()
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, status)
+}
+
+func (h *Handler) handleClear(c echo.Context) error {
+	err := h.usecase.clear()
+	if err != nil {
+		return delivery.Error(c, err)
+	}
+	return delivery.Ok(c, nil)
 }

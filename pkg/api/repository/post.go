@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 	"github.com/jmoiron/sqlx"
-	forumModel "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
+	apiModel "github.com/kzon/technopark-sem2-db/pkg/api/model"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
 	"strconv"
@@ -61,7 +61,7 @@ func (r *Repository) getPosts(orderBy []string, limit int, filter string, params
 	return posts, err
 }
 
-func (r *Repository) CreatePosts(posts []*forumModel.PostCreate, thread *model.Thread) (model.Posts, error) {
+func (r *Repository) CreatePosts(posts []*apiModel.PostCreate, thread *model.Thread) (model.Posts, error) {
 	forum, err := r.GetForumSlug(thread.Forum)
 	if err != nil {
 		return nil, err
@@ -78,8 +78,8 @@ func (r *Repository) CreatePosts(posts []*forumModel.PostCreate, thread *model.T
 	return result, nil
 }
 
-func (r *Repository) chunkPosts(posts []*forumModel.PostCreate) [][]*forumModel.PostCreate {
-	chunked := make([][]*forumModel.PostCreate, 0)
+func (r *Repository) chunkPosts(posts []*apiModel.PostCreate) [][]*apiModel.PostCreate {
+	chunked := make([][]*apiModel.PostCreate, 0)
 	chunkSize := 200
 	for i := 0; i < len(posts); i += chunkSize {
 		end := i + chunkSize
@@ -91,7 +91,7 @@ func (r *Repository) chunkPosts(posts []*forumModel.PostCreate) [][]*forumModel.
 	return chunked
 }
 
-func (r *Repository) createPostsInTx(forum *model.Forum, thread *model.Thread, posts []*forumModel.PostCreate, created time.Time) (model.Posts, error) {
+func (r *Repository) createPostsInTx(forum *model.Forum, thread *model.Thread, posts []*apiModel.PostCreate, created time.Time) (model.Posts, error) {
 	tx, err := r.db.Beginx()
 	if err != nil {
 		return nil, err
@@ -118,7 +118,7 @@ func (r *Repository) createPostsInTx(forum *model.Forum, thread *model.Thread, p
 	return r.getPostsByIDs(insertedIds)
 }
 
-func (r *Repository) bulkCreatePosts(tx *sqlx.Tx, forum *model.Forum, thread *model.Thread, posts []*forumModel.PostCreate, created time.Time) ([]int, error) {
+func (r *Repository) bulkCreatePosts(tx *sqlx.Tx, forum *model.Forum, thread *model.Thread, posts []*apiModel.PostCreate, created time.Time) ([]int, error) {
 	columns := 6
 	placeholders := make([]string, 0, len(posts))
 	args := make([]interface{}, 0, len(posts)*columns)
@@ -145,7 +145,7 @@ func (r *Repository) incForumPostsCount(tx *sqlx.Tx, forum string, newCount int)
 	return err
 }
 
-func (r *Repository) fillPostsPath(tx *sqlx.Tx, ids []int, posts []*forumModel.PostCreate) error {
+func (r *Repository) fillPostsPath(tx *sqlx.Tx, ids []int, posts []*apiModel.PostCreate) error {
 	for i, id := range ids {
 		post := posts[i]
 		path, err := r.getPostPath(id, post.Parent)

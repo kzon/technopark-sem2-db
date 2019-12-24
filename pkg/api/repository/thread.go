@@ -2,7 +2,7 @@ package repository
 
 import (
 	"fmt"
-	model2 "github.com/kzon/technopark-sem2-db/pkg/component/forum/model"
+	model2 "github.com/kzon/technopark-sem2-db/pkg/api/model"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
 	"strconv"

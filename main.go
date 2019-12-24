@@ -3,10 +3,8 @@ package main
 import (
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/jmoiron/sqlx"
-	"github.com/kzon/technopark-sem2-db/pkg/component/forum"
-	forumRepository "github.com/kzon/technopark-sem2-db/pkg/component/forum/repository"
-	"github.com/kzon/technopark-sem2-db/pkg/component/service"
-	"github.com/kzon/technopark-sem2-db/pkg/component/user"
+	"github.com/kzon/technopark-sem2-db/pkg/api"
+	"github.com/kzon/technopark-sem2-db/pkg/api/repository"
 	"github.com/labstack/echo"
 	"log"
 	"os"
@@ -21,17 +19,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	userRepo := user.NewRepository(db)
-	userUsecase := user.NewUsecase(userRepo)
-	user.NewHandler(e, userUsecase)
-
-	forumRepo := forumRepository.NewRepository(db)
-	forumUsecase := forum.NewUsecase(forumRepo, userRepo)
-	forum.NewHandler(e, forumUsecase)
-
-	serviceRepo := service.NewRepository(db)
-	serviceUsecase := service.NewUsecase(serviceRepo)
-	service.NewHandler(e, serviceUsecase)
+	repo := repository.NewRepository(db)
+	forumUsecase := api.NewUsecase(repo)
+	api.NewHandler(e, forumUsecase)
 
 	log.Fatal(e.Start(":" + PORT))
 }

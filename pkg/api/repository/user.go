@@ -1,21 +1,12 @@
-package user
+package repository
 
 import (
 	"database/sql"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
 )
-
-type Repository struct {
-	db *sqlx.DB
-}
-
-func NewRepository(db *sqlx.DB) Repository {
-	return Repository{db: db}
-}
 
 func (r *Repository) GetUserByID(userID int) (*model.User, error) {
 	user := model.User{}
@@ -53,7 +44,7 @@ func (r *Repository) getUserByEmail(email string) (*model.User, error) {
 	return &user, nil
 }
 
-func (r *Repository) getUsersByNicknameOrEmail(nickname, email string) ([]*model.User, error) {
+func (r *Repository) GetUsersByNicknameOrEmail(nickname, email string) ([]*model.User, error) {
 	var users []*model.User
 	err := r.db.Select(&users,
 		`select * from "user" where nickname = $1 or email = $2`,
@@ -65,7 +56,7 @@ func (r *Repository) getUsersByNicknameOrEmail(nickname, email string) ([]*model
 	return users, nil
 }
 
-func (r *Repository) createUser(nickname, email, fullname, about string) (*model.User, error) {
+func (r *Repository) CreateUser(nickname, email, fullname, about string) (*model.User, error) {
 	var id int
 	err := r.db.QueryRow(
 		`insert into "user" (nickname, email, fullname, about) values ($1, $2, $3, $4) returning id`,
@@ -77,7 +68,7 @@ func (r *Repository) createUser(nickname, email, fullname, about string) (*model
 	return r.GetUserByID(id)
 }
 
-func (r *Repository) updateUserByNickname(nickname, email, fullname, about string) error {
+func (r *Repository) UpdateUserByNickname(nickname, email, fullname, about string) error {
 	userByEmail, err := r.getUserByEmail(email)
 	if err != nil && err != consts.ErrNotFound {
 		return err

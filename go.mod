@@ -7,7 +7,6 @@ require (
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/labstack/echo v3.3.10+incompatible
 	github.com/labstack/gommon v0.3.0 // indirect
-	github.com/mailru/easyjson v0.7.0
 	github.com/pkg/errors v0.8.1 // indirect
 	golang.org/x/crypto v0.0.0-20191117063200-497ca9f6d64f // indirect
 	golang.org/x/text v0.3.2 // indirect

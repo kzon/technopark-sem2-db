@@ -1,3 +1,5 @@
+//go:generate easyjson -all $GOFILE
+
 package model
 
 type (

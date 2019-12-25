@@ -9,6 +9,7 @@ create table "user"
     "about"    text   not null default ''
 );
 
+
 create table "forum"
 (
     "id"      serial,
@@ -18,6 +19,7 @@ create table "forum"
     "posts"   int default 0 not null,
     "threads" int default 0 not null
 );
+
 
 create table "thread"
 (
@@ -33,6 +35,20 @@ create table "thread"
 create index on "thread" ("slug");
 create index on "thread" ("created", "forum");
 create index on "thread" ("forum", "author");
+
+create function inc_forum_thread() returns trigger as
+$$
+begin
+    update forum set threads = threads + 1 where slug=NEW.forum;
+    return NEW;
+end;
+$$ language plpgsql;
+
+create trigger thread_insert
+    after insert
+    on thread
+    for each row
+execute procedure inc_forum_thread();
 
 
 create table "post"
@@ -82,7 +98,6 @@ create trigger forum_user
     on post
     for each row
 execute procedure add_forum_user();
-
 create trigger forum_user
     after insert
     on thread

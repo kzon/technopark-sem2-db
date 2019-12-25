@@ -1,11 +1,12 @@
 package main
 
 import (
+	"fmt"
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/kzon/technopark-sem2-db/pkg/api"
 	"github.com/kzon/technopark-sem2-db/pkg/api/repository"
-	"github.com/labstack/echo"
+	"github.com/valyala/fasthttp"
 	"log"
 	"os"
 )
@@ -13,17 +14,17 @@ import (
 const PORT = "5000"
 
 func main() {
-	e := echo.New()
 	db, err := NewDB()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	repo := repository.NewRepository(db)
-	forumUsecase := api.NewUsecase(repo)
-	api.NewHandler(e, forumUsecase)
+	usecase := api.NewUsecase(repo)
+	handler := api.NewHandler(usecase)
 
-	log.Fatal(e.Start(":" + PORT))
+	fmt.Println("listening port " + PORT)
+	log.Fatal(fasthttp.ListenAndServe(":"+PORT, handler.GetHandleFunc()))
 }
 
 func NewDB() (*sqlx.DB, error) {

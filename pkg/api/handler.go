@@ -1,217 +1,261 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
+	"github.com/buaazp/fasthttprouter"
 	apiModel "github.com/kzon/technopark-sem2-db/pkg/api/model"
 	"github.com/kzon/technopark-sem2-db/pkg/consts"
-	"github.com/kzon/technopark-sem2-db/pkg/delivery"
-	"github.com/labstack/echo"
+	"github.com/kzon/technopark-sem2-db/pkg/deliv"
+	"github.com/valyala/fasthttp"
 	"strconv"
 	"strings"
 )
 
 type Handler struct {
-	usecase Usecase
+	usecase *Usecase
+	router  *fasthttprouter.Router
 }
 
-func NewHandler(e *echo.Echo, usecase Usecase) Handler {
-	h := Handler{usecase: usecase}
+func NewHandler(usecase Usecase) Handler {
+	h := Handler{
+		usecase: &usecase,
+		router:  fasthttprouter.New(),
+	}
 
-	e.POST("/api/user/:nickname/create", h.handleUserCreate)
-	e.GET("/api/user/:nickname/profile", h.handleGetUserProfile)
-	e.POST("/api/user/:nickname/profile", h.handleUserUpdate)
+	h.router.POST("/api/user/:nickname/create", h.handleUserCreate)
+	h.router.GET("/api/user/:nickname/profile", h.handleGetUserProfile)
+	h.router.POST("/api/user/:nickname/profile", h.handleUserUpdate)
 
-	e.POST("/api/forum/create", h.handleForumCreate)
-	e.POST("/api/forum/:slug/create", h.handleThreadCreate)
-	e.GET("/api/forum/:slug/details", h.handleGetForumDetails)
-	e.GET("/api/forum/:slug/threads", h.handleGetForumThreads)
-	e.GET("/api/forum/:slug/users", h.handleGetForumUsers)
+	h.router.POST("/api/forum/:slug/create", h.handleForumOrThreadCreate)
+	h.router.GET("/api/forum/:slug/details", h.handleGetForumDetails)
+	h.router.GET("/api/forum/:slug/threads", h.handleGetForumThreads)
+	h.router.GET("/api/forum/:slug/users", h.handleGetForumUsers)
 
-	e.POST("/api/thread/:slug_or_id/create", h.handlePostCreate)
-	e.POST("/api/thread/:slug_or_id/vote", h.handleVoteForThread)
-	e.GET("/api/thread/:slug_or_id/details", h.handleGetThreadDetails)
-	e.POST("/api/thread/:slug_or_id/details", h.handleThreadUpdate)
-	e.GET("/api/thread/:slug_or_id/posts", h.handleGetThreadPosts)
+	h.router.POST("/api/thread/:slug_or_id/create", h.handlePostCreate)
+	h.router.POST("/api/thread/:slug_or_id/vote", h.handleVoteForThread)
+	h.router.GET("/api/thread/:slug_or_id/details", h.handleGetThreadDetails)
+	h.router.POST("/api/thread/:slug_or_id/details", h.handleThreadUpdate)
+	h.router.GET("/api/thread/:slug_or_id/posts", h.handleGetThreadPosts)
 
-	e.GET("/api/post/:id/details", h.handleGetPostDetails)
-	e.POST("/api/post/:id/details", h.handlePostUpdate)
+	h.router.GET("/api/post/:id/details", h.handleGetPostDetails)
+	h.router.POST("/api/post/:id/details", h.handlePostUpdate)
 
-	e.GET("/api/service/status", h.handleStatus)
-	e.POST("/api/service/clear", h.handleClear)
+	h.router.GET("/api/service/status", h.handleStatus)
+	h.router.POST("/api/service/clear", h.handleClear)
 
 	return h
 }
 
-func (h *Handler) handleUserCreate(c echo.Context) error {
+func (h *Handler) GetHandleFunc() fasthttp.RequestHandler {
+	return h.router.Handler
+}
+
+func (h *Handler) handleUserCreate(c *fasthttp.RequestCtx) {
 	u := apiModel.UserInput{}
-	if err := c.Bind(&u); err != nil {
-		return delivery.BadRequest(c, err)
+	if err := json.Unmarshal(c.PostBody(), &u); err != nil {
+		deliv.BadRequest(c, err)
+		return
 	}
-	users, err := h.usecase.createUser(c.Param("nickname"), u.Email, u.Fullname, u.About)
+	users, err := h.usecase.createUser(deliv.PathParam(c, "nickname"), u.Email, u.Fullname, u.About)
 	if errors.Is(err, consts.ErrConflict) {
-		return delivery.Conflict(c, users)
+		deliv.Conflict(c, users)
+		return
 	}
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Created(c, users[0])
+	deliv.Created(c, users[0])
 }
 
-func (h *Handler) handleGetUserProfile(c echo.Context) error {
-	u, err := h.usecase.getUserByNickname(c.Param("nickname"))
+func (h *Handler) handleGetUserProfile(c *fasthttp.RequestCtx) {
+	u, err := h.usecase.getUserByNickname(deliv.PathParam(c, "nickname"))
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, u)
+	deliv.Ok(c, u)
 }
 
-func (h *Handler) handleUserUpdate(c echo.Context) error {
+func (h *Handler) handleUserUpdate(c *fasthttp.RequestCtx) {
 	u := apiModel.UserInput{}
-	if err := c.Bind(&u); err != nil {
-		return delivery.BadRequest(c, err)
+	if err := json.Unmarshal(c.PostBody(), &u); err != nil {
+		deliv.BadRequest(c, err)
+		return
 	}
-	user, err := h.usecase.updateUser(c.Param("nickname"), u.Email, u.Fullname, u.About)
+	nick := deliv.PathParam(c, "nickname")
+	user, err := h.usecase.updateUser(nick, u.Email, u.Fullname, u.About)
 	if errors.Is(err, consts.ErrConflict) {
-		return delivery.ConflictWithMessage(c, err)
+		deliv.ConflictWithMessage(c, err)
+		return
 	}
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, user)
+	deliv.Ok(c, user)
 }
 
-func (h Handler) handleForumCreate(c echo.Context) error {
+func (h *Handler) handleForumOrThreadCreate(c *fasthttp.RequestCtx) {
+	// Hack fasthttprouter path params matching
+	if string(c.Path()) == "/api/forum/create" {
+		h.handleForumCreate(c)
+	} else {
+		h.handleThreadCreate(c)
+	}
+}
+
+func (h *Handler) handleForumCreate(c *fasthttp.RequestCtx) {
 	forumToCreate := apiModel.ForumCreate{}
-	if err := c.Bind(&forumToCreate); err != nil {
-		return delivery.BadRequest(c, err)
+	if err := json.Unmarshal(c.PostBody(), &forumToCreate); err != nil {
+		deliv.BadRequest(c, err)
+		return
 	}
 	forum, err := h.usecase.createForum(forumToCreate.Title, forumToCreate.Slug, forumToCreate.User)
 	if errors.Is(err, consts.ErrConflict) {
-		return delivery.Conflict(c, forum)
+		deliv.Conflict(c, forum)
+		return
 	}
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Created(c, forum)
+	deliv.Created(c, forum)
 }
 
-func (h *Handler) handleThreadCreate(c echo.Context) error {
+func (h *Handler) handleThreadCreate(c *fasthttp.RequestCtx) {
 	thread := apiModel.ThreadCreate{}
-	if err := c.Bind(&thread); err != nil {
-		return delivery.BadRequest(c, err)
+	if err := json.Unmarshal(c.PostBody(), &thread); err != nil {
+		deliv.BadRequest(c, err)
+		return
 	}
-	forum := c.Param("slug")
+	forum := deliv.PathParam(c, "slug")
 	result, err := h.usecase.createThread(forum, thread)
 	if errors.Is(err, consts.ErrConflict) {
-		return delivery.Conflict(c, result)
+		deliv.Conflict(c, result)
+		return
 	}
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Created(c, result)
+	deliv.Created(c, result)
 }
 
-func (h *Handler) handleGetForumDetails(c echo.Context) error {
-	slug := c.Param("slug")
+func (h *Handler) handleGetForumDetails(c *fasthttp.RequestCtx) {
+	slug := deliv.PathParam(c, "slug")
 	forum, err := h.usecase.getForum(slug)
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, forum)
+	deliv.Ok(c, forum)
 }
 
-func (h *Handler) handleGetForumThreads(c echo.Context) error {
-	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-	desc, _ := strconv.ParseBool(c.QueryParam("desc"))
-	threads, err := h.usecase.getForumThreads(c.Param("slug"), c.QueryParam("since"), limit, desc)
+func (h *Handler) handleGetForumThreads(c *fasthttp.RequestCtx) {
+	limit, _ := strconv.Atoi(deliv.QueryParam(c, "limit"))
+	desc, _ := strconv.ParseBool(deliv.QueryParam(c, "desc"))
+	threads, err := h.usecase.getForumThreads(deliv.PathParam(c, "slug"), deliv.QueryParam(c, "since"), limit, desc)
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, threads)
+	deliv.Ok(c, threads)
 }
 
-func (h *Handler) handleGetForumUsers(c echo.Context) error {
-	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-	desc, _ := strconv.ParseBool(c.QueryParam("desc"))
-	users, err := h.usecase.getForumUsers(c.Param("slug"), c.QueryParam("since"), limit, desc)
+func (h *Handler) handleGetForumUsers(c *fasthttp.RequestCtx) {
+	limit, _ := strconv.Atoi(deliv.QueryParam(c, "limit"))
+	desc, _ := strconv.ParseBool(deliv.QueryParam(c, "desc"))
+	users, err := h.usecase.getForumUsers(deliv.PathParam(c, "slug"), deliv.QueryParam(c, "since"), limit, desc)
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, users)
+	deliv.Ok(c, users)
 }
 
-func (h *Handler) handlePostCreate(c echo.Context) error {
+func (h *Handler) handlePostCreate(c *fasthttp.RequestCtx) {
 	var posts []*apiModel.PostCreate
-	if err := c.Bind(&posts); err != nil {
-		return delivery.BadRequest(c, err)
+	if err := json.Unmarshal(c.PostBody(), &posts); err != nil {
+		deliv.BadRequest(c, err)
+		return
 	}
-	result, err := h.usecase.createPosts(c.Param("slug_or_id"), posts)
+	result, err := h.usecase.createPosts(deliv.PathParam(c, "slug_or_id"), posts)
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Created(c, result)
+	deliv.Created(c, result)
 }
 
-func (h *Handler) handleVoteForThread(c echo.Context) error {
+func (h *Handler) handleVoteForThread(c *fasthttp.RequestCtx) {
 	var vote apiModel.Vote
-	if err := c.Bind(&vote); err != nil {
-		return delivery.BadRequest(c, err)
+	if err := json.Unmarshal(c.PostBody(), &vote); err != nil {
+		deliv.BadRequest(c, err)
+		return
 	}
-	thread, err := h.usecase.voteForThread(c.Param("slug_or_id"), vote)
+	thread, err := h.usecase.voteForThread(deliv.PathParam(c, "slug_or_id"), vote)
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, thread)
+	deliv.Ok(c, thread)
 }
 
-func (h *Handler) handleGetThreadDetails(c echo.Context) error {
-	thread, err := h.usecase.getThread(c.Param("slug_or_id"))
+func (h *Handler) handleGetThreadDetails(c *fasthttp.RequestCtx) {
+	thread, err := h.usecase.getThread(deliv.PathParam(c, "slug_or_id"))
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, thread)
+	deliv.Ok(c, thread)
 }
 
-func (h *Handler) handleThreadUpdate(c echo.Context) error {
+func (h *Handler) handleThreadUpdate(c *fasthttp.RequestCtx) {
 	t := apiModel.ThreadUpdate{}
-	if err := c.Bind(&t); err != nil {
-		return delivery.BadRequest(c, err)
+	if err := json.Unmarshal(c.PostBody(), &t); err != nil {
+		deliv.BadRequest(c, err)
+		return
 	}
-	thread, err := h.usecase.updateThread(c.Param("slug_or_id"), t.Message, t.Title)
+	thread, err := h.usecase.updateThread(deliv.PathParam(c, "slug_or_id"), t.Message, t.Title)
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, thread)
+	deliv.Ok(c, thread)
 }
 
-func (h *Handler) handleGetThreadPosts(c echo.Context) error {
-	sp := c.QueryParam("since")
+func (h *Handler) handleGetThreadPosts(c *fasthttp.RequestCtx) {
+	sp := deliv.QueryParam(c, "since")
 	var since *int = nil
 	if sp != "" {
 		n, _ := strconv.Atoi(sp)
 		since = &n
 	}
-	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-	desc, _ := strconv.ParseBool(c.QueryParam("desc"))
+	limit, _ := strconv.Atoi(deliv.QueryParam(c, "limit"))
+	desc, _ := strconv.ParseBool(deliv.QueryParam(c, "desc"))
 	posts, err := h.usecase.getThreadPosts(
-		c.Param("slug_or_id"),
+		deliv.PathParam(c, "slug_or_id"),
 		limit,
 		since,
-		c.QueryParam("sort"),
+		deliv.QueryParam(c, "sort"),
 		desc,
 	)
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, posts)
+	deliv.Ok(c, posts)
 }
 
-func (h *Handler) handleGetPostDetails(c echo.Context) error {
-	id, _ := strconv.Atoi(c.Param("id"))
-	related := strings.Split(c.QueryParam("related"), ",")
+func (h *Handler) handleGetPostDetails(c *fasthttp.RequestCtx) {
+	id, _ := strconv.Atoi(deliv.PathParam(c, "id"))
+	related := strings.Split(deliv.QueryParam(c, "related"), ",")
 	details, err := h.usecase.getPostDetails(id, related)
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
 	result := map[string]interface{}{
 		"post": details.Post,
@@ -226,34 +270,39 @@ func (h *Handler) handleGetPostDetails(c echo.Context) error {
 			result["thread"] = details.Thread
 		}
 	}
-	return delivery.Ok(c, result)
+	deliv.Ok(c, result)
 }
 
-func (h *Handler) handlePostUpdate(c echo.Context) error {
+func (h *Handler) handlePostUpdate(c *fasthttp.RequestCtx) {
 	t := apiModel.PostUpdate{}
-	if err := c.Bind(&t); err != nil {
-		return delivery.BadRequest(c, err)
+	if err := json.Unmarshal(c.PostBody(), &t); err != nil {
+		deliv.BadRequest(c, err)
+		return
 	}
-	id, _ := strconv.Atoi(c.Param("id"))
+	id, _ := strconv.Atoi(deliv.PathParam(c, "id"))
 	thread, err := h.usecase.updatePost(id, t.Message)
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, thread)
+	deliv.Ok(c, thread)
 }
 
-func (h *Handler) handleStatus(c echo.Context) error {
+func (h *Handler) handleStatus(c *fasthttp.RequestCtx) {
 	status, err := h.usecase.getStatus()
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, status)
+	deliv.Ok(c, status)
 }
 
-func (h *Handler) handleClear(c echo.Context) error {
+func (h *Handler) handleClear(c *fasthttp.RequestCtx) {
 	err := h.usecase.clear()
 	if err != nil {
-		return delivery.Error(c, err)
+		deliv.Error(c, err)
+		return
 	}
-	return delivery.Ok(c, nil)
+	deliv.Ok(c, nil)
+	return
 }

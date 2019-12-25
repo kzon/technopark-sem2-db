@@ -35,6 +35,7 @@ type (
 	PostUpdate struct {
 		Message string `json:"message"`
 	}
+
 	Vote struct {
 		Nickname string `json:"nickname"`
 		Voice    int    `json:"voice"`

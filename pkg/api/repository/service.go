@@ -22,6 +22,6 @@ func (r *Repository) count(table string) (count int, err error) {
 }
 
 func (r *Repository) Clear() error {
-	_, err := r.db.Exec(`truncate thread, post, forum, "user", vote`)
+	_, err := r.db.Exec(`truncate thread, post, forum, "user", vote, forum_user`)
 	return err
 }

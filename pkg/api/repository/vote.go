@@ -6,7 +6,7 @@ import (
 )
 
 func (r *Repository) AddThreadVote(thread *model.Thread, nickname string, voice int) (newVotes int, err error) {
-	oldVoice, err := r.GetVoice(nickname, thread.ID)
+	oldVoice, err := r.getVoice(nickname, thread.ID)
 	if err != nil {
 		return
 	}
@@ -35,7 +35,7 @@ func (r *Repository) AddThreadVote(thread *model.Thread, nickname string, voice 
 	return
 }
 
-func (r *Repository) GetVoice(nickname string, threadID int) (int, error) {
+func (r *Repository) getVoice(nickname string, threadID int) (int, error) {
 	var voice int
 	err := r.db.Get(&voice, `select voice from vote where nickname = $1 and thread = $2`, nickname, threadID)
 	if err == sql.ErrNoRows {

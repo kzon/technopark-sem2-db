@@ -56,7 +56,15 @@ create table "vote"
 (
     "id"       serial primary key,
     "thread"   int    not null,
-    "nickname" citext not null,
+    "nickname" text not null,
     "voice"    int    not null
 );
 create index on "vote" ("thread", "nickname");
+
+
+create table "forum_user"
+(
+    "forum" text not null,
+    "user"  text not null
+);
+create index on "forum_user" ("user", "forum");

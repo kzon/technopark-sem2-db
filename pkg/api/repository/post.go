@@ -101,6 +101,11 @@ func (r *Repository) createPostsInTx(forum *model.Forum, thread *model.Thread, p
 		tx.Rollback()
 		return nil, err
 	}
+	err = r.incForumPostsCount(tx, forum.Slug, len(posts))
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
 	err = r.fillPostsPath(tx, insertedIds, posts)
 	if err != nil {
 		tx.Rollback()
@@ -133,6 +138,11 @@ func (r *Repository) bulkCreatePosts(tx *sqlx.Tx, forum *model.Forum, thread *mo
 	ids := make([]int, 0)
 	err := tx.Select(&ids, query, args...)
 	return ids, err
+}
+
+func (r *Repository) incForumPostsCount(tx *sqlx.Tx, forum string, newCount int) error {
+	_, err := tx.Exec(`update forum set posts = posts + $1 where slug = $2`, newCount, forum)
+	return err
 }
 
 func (r *Repository) fillPostsPath(tx *sqlx.Tx, ids []int, posts []*apiModel.PostCreate) error {

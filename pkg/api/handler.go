@@ -27,7 +27,7 @@ func NewHandler(usecase Usecase) Handler {
 	h.router.GET("/api/user/:nickname/profile", h.handleGetUserProfile)
 	h.router.POST("/api/user/:nickname/profile", h.handleUserUpdate)
 
-	h.router.POST("/api/forum/:slug/create", h.handleForumOrThreadCreate)
+	h.router.POST("/api/forum/:slug/create", h.handleThreadCreate)
 	h.router.GET("/api/forum/:slug/details", h.handleGetForumDetails)
 	h.router.GET("/api/forum/:slug/threads", h.handleGetForumThreads)
 	h.router.GET("/api/forum/:slug/users", h.handleGetForumUsers)
@@ -48,7 +48,13 @@ func NewHandler(usecase Usecase) Handler {
 }
 
 func (h *Handler) GetHandleFunc() fasthttp.RequestHandler {
-	return h.router.Handler
+	return func(c *fasthttp.RequestCtx) {
+		if string(c.Path()) == "/api/forum/create" {
+			h.handleForumCreate(c)
+		} else {
+			h.router.Handler(c)
+		}
+	}
 }
 
 func (h *Handler) handleUserCreate(c *fasthttp.RequestCtx) {
@@ -95,15 +101,6 @@ func (h *Handler) handleUserUpdate(c *fasthttp.RequestCtx) {
 		return
 	}
 	deliv.Ok(c, user)
-}
-
-func (h *Handler) handleForumOrThreadCreate(c *fasthttp.RequestCtx) {
-	// Hack fasthttprouter path params matching
-	if string(c.Path()) == "/api/forum/create" {
-		h.handleForumCreate(c)
-	} else {
-		h.handleThreadCreate(c)
-	}
 }
 
 func (h *Handler) handleForumCreate(c *fasthttp.RequestCtx) {

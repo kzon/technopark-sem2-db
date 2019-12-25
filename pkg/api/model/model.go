@@ -36,17 +36,6 @@ type (
 		Message string `json:"message"`
 	}
 
-	PostOutput struct {
-		ID       int    `db:"id" json:"id"`
-		Parent   int    `db:"parent" json:"parent"`
-		Author   string `db:"author" json:"author"`
-		Forum    string `db:"forum" json:"forum"`
-		Thread   int    `db:"thread" json:"thread"`
-		Message  string `db:"message" json:"message"`
-		IsEdited bool   `db:"isEdited" json:"isEdited"`
-		Created  string `db:"created" json:"created"`
-	}
-
 	Vote struct {
 		Nickname string `json:"nickname"`
 		Voice    int    `json:"voice"`

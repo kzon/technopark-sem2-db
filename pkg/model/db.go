@@ -33,8 +33,8 @@ type (
 		ID       int    `db:"id" json:"id"`
 		Parent   int    `db:"parent" json:"parent"`
 		Path     string `db:"path" json:"-"`
-		Author   int    `db:"author" json:"author"`
-		Forum    int    `db:"forum" json:"forum"`
+		Author   string `db:"author" json:"author"`
+		Forum    string `db:"forum" json:"forum"`
 		Thread   int    `db:"thread" json:"thread"`
 		Message  string `db:"message" json:"message"`
 		IsEdited bool   `db:"isEdited" json:"isEdited"`

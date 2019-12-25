@@ -55,9 +55,9 @@ create index on "post" ("forum", "author");
 create table "vote"
 (
     "id"       serial primary key,
-    "thread"   int    not null,
+    "thread"   int  not null,
     "nickname" text not null,
-    "voice"    int    not null
+    "voice"    int  not null
 );
 create index on "vote" ("thread", "nickname");
 
@@ -67,4 +67,24 @@ create table "forum_user"
     "forum" text not null,
     "user"  text not null
 );
-create index on "forum_user" ("user", "forum");
+create unique index on "forum_user" ("user", "forum");
+
+create function add_forum_user() returns trigger as
+$$
+begin
+    insert into forum_user (forum, "user") values (NEW.forum, NEW.author) on conflict do nothing;
+    return NEW;
+end;
+$$ language plpgsql;
+
+create trigger forum_user
+    after insert
+    on post
+    for each row
+execute procedure add_forum_user();
+
+create trigger forum_user
+    after insert
+    on thread
+    for each row
+execute procedure add_forum_user();

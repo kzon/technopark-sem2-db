@@ -67,6 +67,20 @@ create index on "post" ("thread");
 create index on "post" ("path");
 create index on "post" ("forum", "author");
 
+create function inc_forum_post() returns trigger as
+$$
+begin
+    update forum set posts = posts + 1 where slug=NEW.forum;
+    return NEW;
+end;
+$$ language plpgsql;
+
+create trigger post_insert
+    after insert
+    on post
+    for each row
+execute procedure inc_forum_post();
+
 
 create table "vote"
 (

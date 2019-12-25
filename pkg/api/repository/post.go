@@ -19,6 +19,8 @@ const (
 	pathDelim    = "."
 	maxIDLength  = 7
 	maxTreeLevel = 5
+
+	postChunkSize = 100
 )
 
 var zeroPathStud = strings.Repeat("0", maxIDLength)
@@ -80,9 +82,8 @@ func (r *Repository) CreatePosts(posts []*apiModel.PostCreate, thread *model.Thr
 
 func (r *Repository) chunkPosts(posts []*apiModel.PostCreate) [][]*apiModel.PostCreate {
 	chunked := make([][]*apiModel.PostCreate, 0)
-	chunkSize := 200
-	for i := 0; i < len(posts); i += chunkSize {
-		end := i + chunkSize
+	for i := 0; i < len(posts); i += postChunkSize {
+		end := i + postChunkSize
 		if end > len(posts) {
 			end = len(posts)
 		}

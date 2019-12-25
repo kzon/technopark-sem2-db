@@ -62,35 +62,17 @@ func (r *Repository) getThread(fields, filter string, params ...interface{}) (*m
 }
 
 func (r *Repository) CreateThread(forum *model.Forum, thread model2.ThreadCreate) (*model.Thread, error) {
-	id, err := r.createThreadInTx(forum, thread)
-	if err != nil {
-		return nil, err
-	}
-	return r.GetThreadByID(id)
-}
-
-func (r *Repository) createThreadInTx(forum *model.Forum, thread model2.ThreadCreate) (id int, err error) {
-	tx, err := r.db.Begin()
-	if err != nil {
-		return
-	}
-	err = tx.
+	var id int
+	err := r.db.
 		QueryRow(
 			`insert into thread (title, author, forum, message, slug, created) values ($1, $2, $3, $4, $5, $6) returning id`,
 			thread.Title, thread.Author, forum.Slug, thread.Message, thread.Slug, thread.Created,
 		).
 		Scan(&id)
 	if err != nil {
-		tx.Rollback()
-		return
+		return nil, err
 	}
-	_, err = tx.Exec(`update forum set threads = threads + 1 where slug = $1`, forum.Slug)
-	if err != nil {
-		tx.Rollback()
-		return
-	}
-	err = tx.Commit()
-	return
+	return r.GetThreadByID(id)
 }
 
 func (r *Repository) UpdateThread(threadSlugOrID string, message, title string) (*model.Thread, error) {

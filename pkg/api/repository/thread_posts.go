@@ -48,10 +48,12 @@ func (r *Repository) getThreadPostsTree(thread, limit int, since *int, desc bool
 		}
 		conditions = append(conditions, sinceCond)
 	}
+
 	orderBy := []string{"path " + r.getOrder(desc)}
 	filter := strings.Join(conditions, " and ")
 	return r.getPosts(orderBy, limit, filter, params...)
 }
+
 
 func (r *Repository) getThreadPostsParentTree(thread, limit int, since *int, desc bool) (model.Posts, error) {
 	conditions := []string{"parent=0", "thread=$1"}

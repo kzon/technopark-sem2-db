@@ -19,12 +19,21 @@ func (r *Repository) GetForumSlug(slug string) (*model.Forum, error) {
 }
 
 func (r *Repository) getForum(fields, filter string, params ...interface{}) (*model.Forum, error) {
-	f := model.Forum{}
-	err := r.db.Get(&f, `select `+fields+` from forum where `+filter, params...)
+	forum := model.Forum{}
+	err := r.db.Get(&forum, `select `+fields+` from forum where `+filter, params...)
 	if err != nil {
 		return nil, repository.Error(err)
 	}
-	return &f, nil
+	if forum.Posts != 0 {
+		return &forum, nil
+	}
+	if forum.Posts, err = r.countForumPosts(forum.Slug); err != nil {
+		return nil, err
+	}
+	if err := r.updateForumPostsCount(forum.ID, forum.Posts); err != nil {
+		return nil, err
+	}
+	return &forum, nil
 }
 
 func (r *Repository) CreateForum(title, slug, user string) (*model.Forum, error) {
@@ -64,4 +73,18 @@ func (r *Repository) GetForumUsers(forumSlug, since string, limit int, desc bool
 		err = r.db.Select(&users, query, forum.Slug, since)
 	}
 	return users, err
+}
+
+func (r *Repository) countForumPosts(forumSlug string) (int, error) {
+	var count int
+	err := r.db.Get(&count, `select count(*) from post where forum=$1`, forumSlug)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *Repository) updateForumPostsCount(id, posts int) error {
+	_, err := r.db.Exec(`update forum set posts=$1 where id=$2`, posts, id)
+	return err
 }

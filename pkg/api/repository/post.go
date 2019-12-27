@@ -71,7 +71,11 @@ func (r *Repository) CreatePosts(posts []*apiModel.PostCreate, thread *model.Thr
 	now := time.Now()
 	result := make(model.Posts, 0, len(posts))
 	for _, chunk := range r.chunkPosts(posts) {
-		created, err := r.createPostsInTx(forum, thread, chunk, now)
+		createdIDs, err := r.createPostsChunk(forum, thread, chunk, now)
+		if err != nil {
+			return nil, err
+		}
+		created, err := r.getPostsByIDs(createdIDs)
 		if err != nil {
 			return nil, err
 		}
@@ -92,63 +96,29 @@ func (r *Repository) chunkPosts(posts []*apiModel.PostCreate) [][]*apiModel.Post
 	return chunked
 }
 
-func (r *Repository) createPostsInTx(forum *model.Forum, thread *model.Thread, posts []*apiModel.PostCreate, created time.Time) (model.Posts, error) {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	insertedIds, err := r.bulkCreatePosts(tx, forum, thread, posts, created)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	err = r.fillPostsPath(tx, insertedIds, posts)
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-	err = tx.Commit()
-	if err != nil {
-		return nil, err
-	}
-	return r.getPostsByIDs(insertedIds)
-}
-
-func (r *Repository) bulkCreatePosts(tx *sqlx.Tx, forum *model.Forum, thread *model.Thread, posts []*apiModel.PostCreate, created time.Time) ([]int, error) {
-	columns := 6
+func (r *Repository) createPostsChunk(forum *model.Forum, thread *model.Thread, posts []*apiModel.PostCreate, created time.Time) ([]int, error) {
+	columns := 8
 	placeholders := make([]string, 0, len(posts))
 	args := make([]interface{}, 0, len(posts)*columns)
-	i := 0
-	for _, post := range posts {
-		placeholders = append(placeholders, fmt.Sprintf(
-			"($%d, $%d, $%d, $%d, $%d, $%d)",
-			i*columns+1, i*columns+2, i*columns+3, i*columns+4, i*columns+5, i*columns+6,
-		))
-		args = append(args, []interface{}{thread.ID, thread.Forum, post.Parent, post.Author, post.Message, created}...)
-		i++
-	}
-	query := fmt.Sprintf(
-		"insert into post (thread, forum, parent, author, message, created) values %s returning id",
-		strings.Join(placeholders, ","),
-	)
-	ids := make([]int, 0)
-	err := tx.Select(&ids, query, args...)
-	return ids, err
-}
-
-func (r *Repository) fillPostsPath(tx *sqlx.Tx, ids []int, posts []*apiModel.PostCreate) error {
-	for i, id := range ids {
-		post := posts[i]
+	ids := r.postsIDGenerator.Next(len(posts))
+	for i, post := range posts {
+		id := ids[i]
 		path, err := r.getPostPath(id, post.Parent)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		err = r.updatePostPath(tx, id, path)
-		if err != nil {
-			return err
-		}
+		args = append(args, id, thread.ID, thread.Forum, post.Parent, path, post.Author, post.Message, created)
+		placeholders = append(placeholders, fmt.Sprintf(
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			i*columns+1, i*columns+2, i*columns+3, i*columns+4, i*columns+5, i*columns+6, i*columns+7, i*columns+8,
+		))
 	}
-	return nil
+	query := fmt.Sprintf(
+		"insert into post (id, thread, forum, parent, path, author, message, created) values %s",
+		strings.Join(placeholders, ","),
+	)
+	_, err := r.db.Exec(query, args...)
+	return ids, err
 }
 
 func (r *Repository) getPostPath(id, parentID int) (string, error) {

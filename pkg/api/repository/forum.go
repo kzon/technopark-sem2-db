@@ -25,7 +25,8 @@ func (r *Repository) getForum(fields, filter string, params ...interface{}) (*mo
 	if err != nil {
 		return nil, repository.Error(err)
 	}
-	if forum.Posts != 0 || !strings.Contains(fields, "posts") || fields == "*" {
+	var includePosts = fields == "*" || strings.Contains(fields, "posts")
+	if forum.Posts != 0 || !includePosts {
 		return &forum, nil
 	}
 	if forum.Posts, err = r.countForumPosts(forum.Slug); err != nil {

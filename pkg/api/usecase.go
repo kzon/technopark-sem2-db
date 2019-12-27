@@ -54,7 +54,7 @@ func (u *Usecase) updateUser(nickname, email, fullname, about string) (*model.Us
 }
 
 func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error) {
-	user, err := u.repo.GetUserNickname(nickname)
+	userNick, err := u.repo.GetUserNickname(nickname)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (u *Usecase) createForum(title, slug, nickname string) (*model.Forum, error
 		return existingForum, fmt.Errorf("%w: forum with this slug already exists", consts.ErrConflict)
 	}
 
-	return u.repo.CreateForum(title, slug, user.Nickname)
+	return u.repo.CreateForum(title, slug, userNick)
 }
 
 func (u *Usecase) createThread(forumSlug string, thread apiModel.ThreadCreate) (*model.Thread, error) {
@@ -169,11 +169,11 @@ func (u *Usecase) voteForThread(threadSlugOrID string, vote apiModel.Vote) (*mod
 	if err != nil {
 		return nil, err
 	}
-	user, err := u.repo.GetUserNickname(vote.Nickname)
+	userNick, err := u.repo.GetUserNickname(vote.Nickname)
 	if err != nil {
 		return nil, err
 	}
-	newVotes, err := u.repo.AddThreadVote(thread, user.Nickname, vote.Voice)
+	newVotes, err := u.repo.AddThreadVote(thread, userNick, vote.Voice)
 	thread.Votes = newVotes
 	return thread, err
 }

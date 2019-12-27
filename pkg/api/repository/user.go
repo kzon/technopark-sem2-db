@@ -8,15 +8,6 @@ import (
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
 )
 
-func (r *Repository) GetUserByID(userID int) (*model.User, error) {
-	user := model.User{}
-	err := r.db.Get(&user, `select * from "user" where id = $1`, userID)
-	if err == sql.ErrNoRows {
-		return nil, consts.ErrNotFound
-	}
-	return &user, err
-}
-
 func (r *Repository) GetUserByNickname(nickname string) (*model.User, error) {
 	user := model.User{}
 	err := r.db.Get(&user, `select * from "user" where nickname = $1`, nickname)
@@ -26,13 +17,27 @@ func (r *Repository) GetUserByNickname(nickname string) (*model.User, error) {
 	return &user, nil
 }
 
-func (r *Repository) GetUserNickname(nickname string) (*model.User, error) {
-	user := model.User{}
-	err := r.db.Get(&user, `select nickname from "user" where nickname = $1`, nickname)
-	if err != nil {
-		return nil, repository.Error(err)
+func (r *Repository) GetUserNickname(nickname string) (string, error) {
+	userNick, err := r.users.GetNickCaseInsensitive(nickname)
+	if err == nil {
+		return userNick, nil
 	}
-	return &user, nil
+	user := model.User{}
+	err = r.db.Get(&user, `select id,nickname from "user" where nickname = $1`, nickname)
+	if err != nil {
+		return "", repository.Error(err)
+	}
+	r.users.Add(user.ID, user.Nickname)
+	return user.Nickname, nil
+}
+
+func (r *Repository) getUserByID(userID int) (*model.User, error) {
+	user := model.User{}
+	err := r.db.Get(&user, `select * from "user" where id = $1`, userID)
+	if err == sql.ErrNoRows {
+		return nil, consts.ErrNotFound
+	}
+	return &user, err
 }
 
 func (r *Repository) getUserByEmail(email string) (*model.User, error) {
@@ -65,7 +70,8 @@ func (r *Repository) CreateUser(nickname, email, fullname, about string) (*model
 	if err != nil {
 		return nil, err
 	}
-	return r.GetUserByID(id)
+	r.users.Add(id, nickname)
+	return r.getUserByID(id)
 }
 
 func (r *Repository) UpdateUserByNickname(nickname, email, fullname, about string) error {

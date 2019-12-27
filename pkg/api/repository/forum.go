@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/kzon/technopark-sem2-db/pkg/model"
 	"github.com/kzon/technopark-sem2-db/pkg/repository"
+	"strings"
 )
 
 func (r *Repository) GetForumByID(id int) (*model.Forum, error) {
@@ -24,7 +25,7 @@ func (r *Repository) getForum(fields, filter string, params ...interface{}) (*mo
 	if err != nil {
 		return nil, repository.Error(err)
 	}
-	if forum.Posts != 0 {
+	if forum.Posts != 0 || !strings.Contains(fields, "posts") || fields == "*" {
 		return &forum, nil
 	}
 	if forum.Posts, err = r.countForumPosts(forum.Slug); err != nil {

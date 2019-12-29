@@ -1,14 +1,13 @@
-FROM golang:1.13 AS build
+FROM ubuntu:18.04
 
-ADD . /opt/app
-WORKDIR /opt/app
-RUN go build .
+EXPOSE 5432
+EXPOSE 5000
 
-
-FROM ubuntu:18.04 AS release
-
+ENV DEBIAN_FRONTEND 'noninteractive'
 ENV PGVER 10
 RUN apt -y update && apt install -y postgresql-$PGVER
+RUN apt install -y wget
+RUN apt install -y git
 
 USER postgres
 
@@ -26,11 +25,17 @@ ADD ./postgresql.conf /etc/postgresql/$PGVER/main/conf.d/basic.conf
 
 VOLUME ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
 
-EXPOSE 5432
-EXPOSE 5000
 
 USER root
 
-COPY --from=build /opt/app/technopark-sem2-db /usr/bin/
+RUN wget https://dl.google.com/go/go1.13.linux-amd64.tar.gz
+RUN tar -xvf go1.13.linux-amd64.tar.gz
+RUN mv go /usr/local
 
-CMD service postgresql start && technopark-sem2-db
+ENV GOROOT /usr/local/go
+ENV GOPATH /opt/go
+ENV PATH $GOROOT/bin:$GOPATH/bin:/usr/local/go/bin:$PATH
+
+ADD . /opt/app
+WORKDIR /opt/app
+CMD service postgresql start && go run .

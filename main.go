@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	_ "github.com/jackc/pgx/stdlib"
+	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/kzon/technopark-sem2-db/pkg/api"
 	"github.com/kzon/technopark-sem2-db/pkg/api/repository"
@@ -28,10 +28,12 @@ func main() {
 }
 
 func NewDB() (*sqlx.DB, error) {
-	db, err := sqlx.Connect("pgx", os.Getenv("POSTGRES_DSN"))
+	db, err := sqlx.Open("pgx", os.Getenv("POSTGRES_DSN"))
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(8)
 	err = db.Ping()
 	if err != nil {
 		return nil, err

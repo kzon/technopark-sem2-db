@@ -54,7 +54,6 @@ func (r *Repository) getThreadPostsTree(thread, limit int, since *int, desc bool
 	return r.getPosts(orderBy, limit, filter, params...)
 }
 
-
 func (r *Repository) getThreadPostsParentTree(thread, limit int, since *int, desc bool) (model.Posts, error) {
 	conditions := []string{"parent=0", "thread=$1"}
 
@@ -84,7 +83,7 @@ func (r *Repository) getThreadPostsParentTree(thread, limit int, since *int, des
 	for _, parent := range parents {
 		var childs model.Posts
 		err := r.db.Select(&childs, fmt.Sprintf(
-			`select * from post where path like '%s.%%' and parent<>0 order by path`, r.padPostID(parent.ID),
+			`select * from post where substring(path,1,7) = '%s' and parent<>0 order by path`, r.padPostID(parent.ID),
 		))
 		if err != nil {
 			return nil, err

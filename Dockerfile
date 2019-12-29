@@ -31,8 +31,6 @@ EXPOSE 5000
 
 USER root
 
-EXPOSE 5000
-
 COPY --from=build /opt/app/technopark-sem2-db /usr/bin/
 
 CMD service postgresql start && technopark-sem2-db
